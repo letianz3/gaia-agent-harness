@@ -122,3 +122,36 @@ def test_xlsx_missing_dimension_metadata_is_supported(tmp_path):
 def test_placeholder_plan_is_not_a_task():
     with pytest.raises(ValueError,match='placeholder'):
         validate_chain({'steps':[dict(task='lookup including all original constraints',input_type=None,output_type='person')]})
+
+
+def test_exclusion_cannot_be_reversed_into_inclusion():
+    c=table_contract();c['rules'][0]['effect']='include'
+    with pytest.raises(ValueError,match='exclusion cannot'):
+        aggregate_contract(c,'sum excluding returns',{'Sales':Decimal(1),'Returns':Decimal(2)})
+
+
+def test_formula_column_does_not_silently_disappear(tmp_path):
+    from openpyxl import Workbook
+    book=Workbook();book.active.append(['Cash','Credit']);book.active.append([3,'=2+2'])
+    path=tmp_path/'formula.xlsx';book.save(path)
+    with pytest.raises(ValueError,match='formula cells'):
+        read_wide_table(path)
+
+
+def test_next_step_can_reuse_previously_retrieved_evidence(monkeypatch):
+    import json
+    import gaia_agent.typed_workflows as w
+    from gaia_agent.registry import ToolRegistry
+    monkeypatch.setattr(w,'ask_json',lambda *a:{'steps':[
+        dict(task='Identify actor from Example Film',input_type=None,output_type='person'),
+        dict(task='Find role in Example Series',input_type='person',output_type='character')]})
+    trace=Trace('synthetic','first name')
+    body='Dana Actor plays Robin Example in the series.'
+    replies=iter([
+        dict(status='FOUND',entity=dict(type='person',name='Dana Actor'),support=[dict(source_url='https://example.org/cast',quote=body)]),
+        entity_report()])
+    def loop(*args):
+        if not any(e.get('name')=='fetch_url' for e in trace.events):trace.events.append(observation(body))
+        return json.dumps(next(replies))
+    agent=SimpleNamespace(_run_tool_loop=loop)
+    assert solve_entity(agent,'Give only the first name',ToolRegistry(),trace)=='Robin'

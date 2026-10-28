@@ -84,7 +84,7 @@ def aggregate_contract(report, question, columns):
     if report.get('operation') != 'sum':
         raise ValueError('only explicit sum contracts supported')
     rules=report.get('rules'); decisions=report.get('columns')
-    if not isinstance(rules,list) or not isinstance(decisions,list):
+    if not isinstance(rules,list) or not rules or not isinstance(decisions,list):
         raise ValueError('rules and columns required')
     ids={}
     for rule in rules:
@@ -93,6 +93,11 @@ def aggregate_contract(report, question, columns):
         span=rule.get('question_span','')
         if not isinstance(span,str) or not span.strip() or span not in question or rule.get('effect') not in ('include','exclude'):
             raise ValueError('rules must quote explicit question criteria')
+        prefix=question[:question.index(span)].rstrip()
+        negative=bool(re.match(r'(?:not including|excluding|except|without)\b',span,re.I)
+                      or re.search(r'(?:not including|excluding|except|without)$',prefix,re.I))
+        if negative and rule['effect']!='exclude':
+            raise ValueError('an explicit exclusion cannot become an inclusion rule')
         ids[rule['id']]=rule['effect']
     names=[r.get('column') for r in decisions if isinstance(r,dict)]
     if len(names)!=len(decisions) or len(set(names))!=len(names) or set(names)!=set(columns):
