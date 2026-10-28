@@ -61,13 +61,50 @@ def test_uncertainty_allows_one_acquisition_and_requires_review(monkeypatch, rev
     from gaia_agent.tracing import Trace
     agent = object.__new__(BaselineAgent)
     agent.settings = SimpleNamespace(planning_enabled=True, replanning_enabled=True,
-                                     max_reflection_rounds=2, max_replans=1)
+                                     max_reflection_rounds=2, max_replans=1, planning_turns_per_subtask=6)
     verdicts = iter([('UNCERTAIN', 'missing source'), (review, 'reviewed')])
     acquisitions = []
-    monkeypatch.setattr(agent, '_critique_answer', lambda *args: next(verdicts))
+    def critique(*args):
+        args[3].add('critique', next_action='acquire_evidence', target='Fetch the official page for the missing value')
+        return next(verdicts)
+    monkeypatch.setattr(agent, '_critique_answer', critique)
     def acquire(*args):
         acquisitions.append(True)
         return 'supported'
-    monkeypatch.setattr(agent, '_answer_with_planning', acquire)
+    monkeypatch.setattr(agent, '_revise_answer', acquire)
     assert agent._recover_answer('task', 'task', 'original', None, Trace('id', 'task'), None, '') == expected
     assert len(acquisitions) == 1
+
+
+@pytest.mark.parametrize('problem', ['parse_failed', 'citation_failed'])
+def test_broken_review_never_launches_more_research(monkeypatch, problem):
+    from gaia_agent.agent import BaselineAgent
+    from gaia_agent.tracing import Trace
+    agent = object.__new__(BaselineAgent)
+    agent.settings = SimpleNamespace(max_reflection_rounds=2)
+    def review(*args):
+        args[3].add('critique', next_action='acquire_evidence', target='Fetch a source', **{problem:True})
+        return 'UNCERTAIN', 'review broken'
+    monkeypatch.setattr(agent, '_critique_answer', review)
+    assert agent._recover_answer('task', 'task', 'original', None, Trace('id','task'), None, '') == 'original'
+
+
+def test_format_repair_is_separate_from_factual_review(monkeypatch):
+    from gaia_agent.agent import BaselineAgent
+    from gaia_agent.tracing import Trace
+    agent = object.__new__(BaselineAgent)
+    agent.settings = SimpleNamespace(max_reflection_rounds=2)
+    replies = iter(['{"answer":"Mount Rainier"}', '{"equivalent":true,"format_ok":true}'])
+    def complete(*args, **kwargs):
+        assert kwargs['response_format'] == {'type':'json_object'}
+        return SimpleNamespace(usage=None, choices=[SimpleNamespace(message=SimpleNamespace(content=next(replies)))])
+    monkeypatch.setattr(agent, '_plain_completion', complete)
+    trace = Trace('id', 'Return a mountain name without abbreviations')
+    assert agent._recover_answer(trace.question, '', 'Mt. Rainier', None, trace, None, '') == 'Mount Rainier'
+    assert trace.events[-1]['verification_scope'].startswith('format and equivalence only')
+
+
+def test_fenced_json_support_and_non_object_responses():
+    evidence = '{"id":"E0","kind":"observation","excerpt":"observed green leaves"}'
+    assert has_valid_support('```json\n{"support":[{"id":"E0","quote":"green leaves"}]}\n```', evidence)
+    assert not has_valid_support('[]', evidence)

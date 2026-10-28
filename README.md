@@ -22,7 +22,7 @@ This project composes Modules 0–11 around the Hugging Face Final Assignment ad
 - Modules 0–3: reusable `BaselineAgent` tool loop and per-task registry.
 - Module 4: per-loop bounded memory compression preserving task and complete tool transactions.
 - Module 5/10: `orchestration.py` combines routing and planning in one model request. It validates task IDs, specialist names and acyclic dependencies. Ready DAG nodes run in bounded waves; dependent nodes receive predecessor results. Specialists are registered delegation tools, each with a fresh history and restricted tool set. A failed predecessor prevents dependent execution. Results are evidence, not guaranteed truth.
-- Module 6: bounded failures, independent critic, one corrective replan, reviewed candidate selection. A critic PASS is not a correctness guarantee.
+- Module 6: bounded tool failures and independent JSON-mode critique. Separate format/equivalence repair from factual verification; repair from existing evidence first, or acquire a concrete missing fact with at most three tool-loop turns. Malformed reviews do not restart research; unchanged candidates are not reviewed twice. A critic PASS is not a correctness guarantee.
 - Module 7: bounded parallel read-only tool calls, serial unsafe/media calls, ordered results. Identical signatures stay serial so failure limits cannot be bypassed. Specialist waves and tool batches have separate concurrency caps (not a global provider RPM limiter).
 - Module 8: JSON Schema validation, dangerous-tool metadata, default-deny approval callback and audit events. Applications may supply `registry.approval(name, arguments)` backed by a real human decision. No destructive demo tool is exposed to GAIA. Python AST restrictions plus a subprocess are not a security sandbox.
 - Module 9: persistent traces, run outcomes, specialist identities, model request hashes and `python scripts/view_trace.py PATH` timeline viewer.
@@ -32,18 +32,9 @@ This project composes Modules 0–11 around the Hugging Face Final Assignment ad
 
 All-module experiments use fresh external-tool caches. Historical runs used different prompts and cache states, so their scores are not controlled architecture comparisons. Do not use leaderboard probing to choose answers for a reported agent run.
 
-### Verified full-stack run — 2026-10-27
-
-Latest evidence-policy revision: **12/20 (60%)**, compared with 11/20 before
-optimization. It used 631,273 chat tokens (+82.1%), 432.256 seconds summed agent
-latency, and 95 tool calls. This modest single-run gain is not a cost-efficiency
-win. See [the full comparison and remaining failure modes](EVALUATION.md).
-Thirty-eight test cases have passed. No benchmark answers are embedded in the
-runtime. The earlier run below is retained as the reference, not the latest code.
-
-`full_20261027T195531Z`: gpt-4.1-mini, all feature flags enabled, **11/20 (55%)** on the official scorer. All 20 tasks finished without top-level exceptions. 332,661 input + 14,013 output chat tokens, 399.213 seconds of agent latency, 90 tool calls, 45 specialist executions, 5 replans. Four parallel tool batches contained 25 calls. Memory compression and LLM cache were enabled but did not trigger (zero compressions/hits). Prices were not configured; no dollar estimate is claimed.
-
-32 unit tests passed, including dependency transfer, failed-dependency propagation, concurrent specialists, validation before approval, default-deny dangerous actions, cache usage accounting, and same-batch repeated-failure blocking. Remaining observed limitations include empty search results, HTTP 403/404/timeouts, generated Python mistakes, media interpretation, and unreliable factual verification. Module completion does not imply 20/20 accuracy or production readiness. The interrupted preceding trial is retained separately and is not included in this score or token count.
+Compare measured usage without model calls or benchmark labels:
+`python scripts/compare_runs.py .runs/full_FIRST .runs/full_SECOND`.
+Detailed experiments and limitations are retained in [EVALUATION.md](EVALUATION.md).
 
 ## What is implemented
 

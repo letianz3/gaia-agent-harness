@@ -1,5 +1,109 @@
 # Evidence acquisition and verification experiment
 
+## Why the 82% increase had little benefit
+
+Trace accounting locates the increase in recovery, not the initial solve:
+
+| Chat tokens by boundary | Original 55% run | Previous 60% run | Difference |
+|---|---:|---:|---:|
+| Through the first critique | 294,891 | 285,895 | -8,996 |
+| After the first critique | 51,783 | 345,378 | +293,595 |
+| Total | 346,674 | 631,273 | +284,599 |
+
+These are measured model-request usage totals split at the first critique event,
+not a causal estimate from timing. The extra 280,717 input tokens account for
+98.6% of the net increase; output increased only 3,882 tokens. Evidence, task
+context and predecessor prose were copied through new plans, specialists,
+synthesis and a second review. Planning tokens rose from 14,916 to 31,736;
+synthesis from 10,726 to 68,311; critique from 39,043 to 87,061. Those latter
+stage counts use adjacent trace events as attribution, not provider billing tags.
+
+The previous 60% run had 29 UNCERTAIN review results, including 13 rejected
+citations and 5 malformed JSON responses. Such reviewer failures were routed
+through research as if they were missing facts. Exact quotations with inserted
+ellipses, invalid escaping, and extra JSON brackets are output-contract failures;
+another web search does not repair them. Only one challenger was marked selected,
+and it was identical to its incumbent. Thus that run demonstrated **zero changed
+answers accepted by recovery**. Its net one-question improvement came from the
+initial answer sets (four gains offset by three regressions), not demonstrated
+successful critic corrections. Tool changes, prompts and model/web variability
+remain confounded.
+
+The critic also repeated semantic mistakes (category membership) despite correct
+arithmetic evidence, while withholding real wording repairs when factual support
+was uncertain. Neither more calls nor literal citation matching addresses all
+these failure modes. Memory compression never triggered in either run; one cache
+hit cannot offset the repeated new prompts.
+
+## Selective recovery revision
+
+- Ask the critic for JSON output, short contiguous quotations, a proposed
+  evidence-based correction or a concrete acquisition target. Keep quotation
+  provenance validation; never accept invented/ellipsized quotations as exact.
+- Treat parsing/citation failures as unusable reviews rather than a signal to
+  restart the task. No automatic research without an actionable target.
+- Repair explicit formatting violations with separate generation and independent
+  equivalence review, preserving identity/values/membership. This verifies format,
+  not underlying factual truth. Ambiguous expansions are rejected.
+- Reuse a critic-proposed answer supported by existing evidence before new tools.
+  When a fact is missing, use one targeted tool loop of at most three turns
+  instead of another whole DAG. Preserve review before factual replacement.
+- Bound evidence to 8,000 characters, shorten per-record arguments, merge by
+  rebuilding one packet rather than concatenating old and new packets, and skip
+  the second review if the candidate is unchanged. Bounded excerpts can still
+  omit relevant passages; reduced cost alone is not a correctness guarantee.
+
+The new policy passed 42 offline tests, including format/equivalence isolation,
+rejecting broken reviewers without tool acquisition, bounded acquisition, and
+conservative candidate selection. The original and intermediate results below
+remain historical records; no task answers are hardcoded in the runtime.
+
+### Measured result of selective recovery
+
+Fresh full run `full_20261028T004401Z`: official **14/20 (70%)**, submitted at
+2026-10-28T00:49:48Z (October 27 locally). Same gpt-4.1-mini and feature flags;
+all 20 tasks completed, source snapshot matches the evaluated runtime.
+
+| Metric | Previous expensive revision | Selective recovery |
+|---|---:|---:|
+| Official correct / 20 | 12 | 14 |
+| Input tokens | 613,378 | 417,423 |
+| Output tokens | 17,895 | 14,151 |
+| Total chat tokens | 631,273 | 431,574 |
+| Summed agent latency (seconds) | 432.256 | 341.705 |
+| Model requests | 243 | 174 |
+| Tool calls | 95 | 74 |
+| Specialist executions | 58 | 35 |
+| Full-DAG recovery replans | 13 | 0 |
+| Targeted acquisitions | 0 | 5 |
+| Existing-evidence repair proposals | 0 | 1 |
+| Format/equivalence repairs accepted | 0 | 1 |
+| Critic JSON parse failures | 5 | 0 |
+| Citation failures | 13 | 7 |
+| Memory compressions | 0 | 0 |
+
+Chat tokens fell **31.63%**, latency **20.95%**. After-first-review tokens fell
+from 345,378 to 90,574; through-first-review tokens rose from 285,895 to 341,000.
+Format-only paths have no factual critique, so the comparator puts their usage
+in the through-first-review bucket. Total usage is authoritative; the split is
+an operational diagnostic, not a controlled attribution of every change.
+
+Three gains (NASA award, city formatting, spreadsheet) were offset by one
+regression (actor/character lookup). The accepted format repair fixed the city
+answer. No changed factual challenger was accepted; the other gains arose in
+initial solving/synthesis, so this single run does not prove that factual
+verification became more accurate. It matches a historical 70% project score;
+the leaderboard did not update its high score.
+
+Six remaining misses concern bird-video coverage, chess image transcription,
+botanical classification, recipe wording, actor lookup, and historical roster
+retrieval. The actor regression explicitly reported missing evidence yet final
+synthesis still proposed a name; selective acquisition did not verify it.
+Citation errors and semantic agreement on a wrong classification remain open
+problems. Cost is also still above the original 346,674-token reference, though
+this run answered three more questions correctly. These development-set results
+should be checked on held-out tasks before generalization claims.
+
 ## Scope and method
 
 Compare two full 20-question runs with gpt-4.1-mini, temperature 0, and all harness

@@ -1,8 +1,18 @@
 """Bounded raw evidence for synthesis and independent verification."""
 import json
+import re
 
 
-def evidence_packet(events, start_index=0, budget=14000):
+def read_json_object(raw):
+    cleaned = re.sub(r'^```(?:json)?\s*|\s*```$', '', raw.strip(), flags=re.I)
+    try:
+        value = json.loads(cleaned)
+        return value if isinstance(value, dict) else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+def evidence_packet(events, start_index=0, budget=8000):
     # Recent direct observations precede search snippets; never promote worker prose
     # or failed tool output into factual support.
     candidates = [(i, e) for i, e in enumerate(events)
@@ -18,9 +28,10 @@ def evidence_packet(events, start_index=0, budget=14000):
         if value.startswith('(completed with no output'):
             continue
         seen.add(value)
-        excerpt = value if len(value) <= 2200 else value[:1600] + '\n[excerpt omitted]\n' + value[-600:]
+        limit = 4000 if event.get('type') == 'input_evidence' else 1400
+        excerpt = value if len(value) <= limit else value[:limit-600] + '\n[excerpt omitted]\n' + value[-600:]
         item = json.dumps({'id': f'E{i}', 'tool': event.get('name'),
-                           'arguments': event.get('arguments', event.get('args', {})),
+                           'arguments': str(event.get('arguments', event.get('args', {})))[:300],
                            'kind': ('task_input' if event.get('type') == 'input_evidence' else
                                     'discovery_only' if event.get('name') == 'search_web' else 'observation'),
                            'excerpt': excerpt}, ensure_ascii=False)
@@ -32,7 +43,7 @@ def evidence_packet(events, start_index=0, budget=14000):
 def has_valid_support(raw, evidence):
     """Reject invented citations. This checks provenance, not factual entailment."""
     try:
-        result = json.loads(raw)
+        result = read_json_object(raw)
         records = {e['id']: e for e in map(json.loads, evidence.splitlines())}
         supports = result.get('support', [])
         return bool(supports) and all(

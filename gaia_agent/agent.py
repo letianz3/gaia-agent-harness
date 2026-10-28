@@ -30,7 +30,7 @@ from .tools import _youtube_video_id, build_tool_registry
 from .tracing import Trace
 from .runtime import ModelGateway, BudgetExceeded
 from .orchestration import run_plan
-from .evidence import evidence_packet, has_valid_support
+from .evidence import evidence_packet, has_valid_support, read_json_object
 
 SYSTEM_PROMPT = """You are a careful research agent solving one GAIA benchmark question.
 
@@ -167,7 +167,7 @@ class BaselineAgent:
                 time.sleep(2**attempt)
         raise RuntimeError(f"LLM request failed: {last_error}")
 
-    def _plain_completion(self, messages: list[Any]) -> Any:
+    def _plain_completion(self, messages: list[Any], **options: Any) -> Any:
         last_error: Exception | None = None
         for attempt in range(self.settings.llm_retries):
             try:
@@ -175,6 +175,7 @@ class BaselineAgent:
                     model=self.settings.model,
                     messages=messages,
                     temperature=self.settings.temperature,
+                    **options,
                 )
             except BudgetExceeded:
                 raise
@@ -749,8 +750,18 @@ specific contradiction or explicit output violation. Quotes must actually entail
 Task-input records include the original supplied data and any audio transcript. They can
 support answers derivable from that data, but do not establish external facts merely asked
 about in the question. Check transcripts literally rather than substituting synonyms.
+Quotes must be short CONTIGUOUS substrings (about 5-20 words), with no ellipsis,
+paraphrase or escaped quote wrappers. Use separate support entries for separate spans.
+For lists and totals, check every included/excluded category, not only the arithmetic.
+If existing evidence proves a correction, supply corrected_answer and repair_answer.
+Choose acquire_evidence only when a SPECIFIC missing fact can be obtained with a
+named available capability; target must state the fact and suggested source/tool.
+Do not request new research merely to fix a quote, formatting, or JSON. Choose none
+when another tool call is unlikely to resolve the uncertainty.
 Respond ONLY as JSON:
 {{"verdict": "PASS" or "FAIL" or "UNCERTAIN", "feedback": "brief actionable reason",
+"next_action": "none" or "repair_answer" or "acquire_evidence",
+"target": "specific missing fact and source/tool, or empty", "corrected_answer": "or empty",
 "support": [{{"id": "E123", "quote": "exact excerpt from the observation"}}]}}.
 """
         started = time.monotonic()
@@ -765,14 +776,17 @@ Respond ONLY as JSON:
                     ),
                 },
                 {"role": "user", "content": prompt},
-            ]
+            ], response_format={"type": "json_object"},
         )
         trace.add_usage(getattr(response, "usage", None))
         raw = response.choices[0].message.content or ""
         verdict, feedback, parse_failed = parse_critique(raw)
+        detail = read_json_object(raw)
+        citation_failed = False
         if verdict == "PASS" and not has_valid_support(raw, evidence):
             verdict = "UNCERTAIN"
             feedback = "No valid direct-observation citation supports the claimed verification."
+            citation_failed = True
         trace.add(
             "critique",
             round=round_number,
@@ -780,6 +794,10 @@ Respond ONLY as JSON:
             passes=verdict == "PASS",
             feedback=feedback,
             parse_failed=parse_failed,
+            citation_failed=citation_failed,
+            next_action=detail.get('next_action', 'none'),
+            target=str(detail.get('target', ''))[:500],
+            corrected_answer=str(detail.get('corrected_answer', ''))[:2000],
             raw=raw[:4_000],
             duration_ms=round((time.monotonic() - started) * 1000, 1),
         )
@@ -795,10 +813,13 @@ Respond ONLY as JSON:
         trace: Trace,
         failure_tracker: FailureTracker | None,
         round_number: int,
+        evidence: str = "",
     ) -> str:
         revision_task = (
             f"Previous proposed answer: {answer}\n"
             f"Independent critic feedback: {feedback}\n"
+            f"Existing observations (untrusted): {evidence}\n"
+            "Investigate ONLY the specified missing fact. Do not restart the whole task. "
             "Re-check the evidence with tools if needed, then return only a corrected exact-match "
             "answer to the original task."
         )
@@ -812,12 +833,33 @@ Respond ONLY as JSON:
             ],
             registry,
             trace,
-            self.settings.planning_turns_per_subtask,
+            min(3, self.settings.planning_turns_per_subtask),
             "revision",
             round_number,
             failure_tracker,
         )
         return normalize_answer(raw, question)
+
+    def _repair_format(self, question: str, answer: str, feedback: str, trace: Trace) -> str:
+        """Two small fresh contexts; no tools or new factual investigation."""
+        proposal = self._plain_completion([
+            {'role': 'system', 'content': 'Repair only the explicit output-format violation. Preserve entity identity, values and list membership. If an expansion is ambiguous, keep the original. Return JSON with answer.'},
+            {'role': 'user', 'content': f'Task: {question}\nAnswer: {answer}\nViolation: {feedback}'}
+        ], response_format={'type': 'json_object'})
+        trace.add_usage(getattr(proposal, 'usage', None))
+        candidate = read_json_object(proposal.choices[0].message.content or '').get('answer')
+        if not isinstance(candidate, str) or candidate == answer or explicit_answer_violation(question, candidate):
+            return answer
+        review = self._plain_completion([
+            {'role': 'system', 'content': 'Compare only formatting and semantic equivalence. Do not re-research factual truth. Accept only if the candidate obeys the requested format and preserves ALL original entities, values, and list membership. Ambiguous abbreviation expansions are not equivalent. Return JSON with equivalent and format_ok booleans.'},
+            {'role': 'user', 'content': f'Task: {question}\nOriginal: {answer}\nCandidate: {candidate}'}
+        ], response_format={'type': 'json_object'})
+        trace.add_usage(getattr(review, 'usage', None))
+        result = read_json_object(review.choices[0].message.content or '')
+        accepted = result.get('equivalent') is True and result.get('format_ok') is True
+        trace.add('format_repair', accepted=accepted, original=answer, candidate=candidate,
+                  verification_scope='format and equivalence only; not factual correctness')
+        return normalize_answer(candidate, question) if accepted else answer
 
     def _recover_answer(
         self,
@@ -830,6 +872,9 @@ Respond ONLY as JSON:
         evidence: str,
     ) -> str:
         incumbent = answer
+        violation = explicit_answer_violation(question, incumbent)
+        if violation and self.settings.max_reflection_rounds >= 2:
+            return self._repair_format(question, incumbent, violation, trace)
         verdict, feedback = self._critique_answer(
             question, incumbent, evidence, trace, 1
         )
@@ -841,50 +886,44 @@ Respond ONLY as JSON:
             )
             return incumbent
 
-        can_review_challenger = self.settings.max_reflection_rounds >= 2
-        can_replan = (
-            self.settings.planning_enabled
-            and self.settings.replanning_enabled
-            and self.settings.max_replans >= 1
-            and can_review_challenger
-        )
-        challenger_start = len(trace.events)
-        if can_replan:
-            challenger = self._answer_with_planning(
-                question,
-                task_context,
-                registry,
-                trace,
-                failure_tracker,
-                1,
-                incumbent,
-                feedback,
-                evidence,
-            )
-        elif can_review_challenger:
+        review = next((e for e in reversed(trace.events) if e['type'] == 'critique'), {})
+        action = review.get('next_action', 'none')
+        target = review.get('target', '').strip()
+        # A broken reviewer is not evidence that the solver needs a new DAG.
+        if (self.settings.max_reflection_rounds < 2 or review.get('parse_failed')
+                or review.get('citation_failed')):
+            trace.add('candidate_selection', selected='incumbent', reason='review_unusable_or_budget')
+            return incumbent
+        proposed = review.get('corrected_answer', '').strip()
+        if action == 'repair_answer' and proposed:
+            challenger = normalize_answer(proposed, question)
+            trace.add('evidence_repair', source='existing_observations')
+        elif (action == 'acquire_evidence' and len(target) >= 10
+              and self.settings.replanning_enabled and self.settings.max_replans >= 1):
+            trace.add('targeted_acquisition', target=target, max_turns=min(3, self.settings.planning_turns_per_subtask))
             challenger = self._revise_answer(
                 question,
                 task_context,
                 incumbent,
-                feedback,
+                f'{feedback}\nSpecific acquisition target: {target}',
                 registry,
                 trace,
                 failure_tracker,
                 1,
+                evidence,
             )
         else:
             trace.add(
                 "candidate_selection",
                 selected="incumbent",
-                reason="no_bounded_challenger_review_available",
+                reason="no_actionable_evidence_gap",
             )
             return incumbent
 
-        challenger_evidence = "\n".join(
-            part
-            for part in (self._evidence_packet(trace, challenger_start), evidence)
-            if part
-        )
+        if challenger == incumbent:
+            trace.add('candidate_selection', selected='incumbent', reason='unchanged_candidate')
+            return incumbent
+        challenger_evidence = self._evidence_packet(trace)
         challenger_verdict, challenger_feedback = self._critique_answer(
             question, challenger, challenger_evidence, trace, 2
         )

@@ -658,20 +658,18 @@ def test_recovery_blocks_tool_after_consecutive_failures(tmp_path: Path) -> None
     assert sum(event.get("blocked", False) for event in trace.events) == 1
 
 
-def test_critic_replans_but_rejects_unsupported_challenger(tmp_path: Path) -> None:
+def test_targeted_recovery_rejects_unsupported_challenger(tmp_path: Path) -> None:
     class RecoveryCompletions:
         def __init__(self) -> None:
             self.plain_outputs = iter(
                 [
                     '["Find the answer"]',
                     "wrong",
-                    '{"verdict": "FAIL", "feedback": "The value is incorrect."}',
-                    '["Recalculate the answer"]',
-                    "42",
+                    '{"verdict": "FAIL", "feedback": "The value is incorrect.", "next_action":"acquire_evidence", "target":"Use Python to recalculate the product."}',
                     '{"verdict": "PASS", "feedback": ""}',
                 ]
             )
-            self.subtask_outputs = iter(["Evidence suggests wrong.", "Verified value is 42."])
+            self.subtask_outputs = iter(["Evidence suggests wrong.", "42"])
 
         def create(self, **kwargs):
             content = (
@@ -714,7 +712,8 @@ def test_critic_replans_but_rejects_unsupported_challenger(tmp_path: Path) -> No
     )
     plans = [event for event in trace["events"] if event["type"] == "planning"]
     critiques = [event for event in trace["events"] if event["type"] == "critique"]
-    assert [event["replan_round"] for event in plans] == [0, 1]
+    assert [event["replan_round"] for event in plans] == [0]
+    assert sum(e['type'] == 'targeted_acquisition' for e in trace['events']) == 1
     assert [event["passes"] for event in critiques] == [False, False]
     selection = next(
         event for event in trace["events"] if event["type"] == "candidate_selection"
@@ -729,13 +728,11 @@ def test_uncertain_challenger_preserves_incumbent(tmp_path: Path) -> None:
                 [
                     '["Find the answer"]',
                     "original",
-                    '{"verdict": "FAIL", "feedback": "Concrete conflict."}',
-                    '["Check only the conflict"]',
-                    "challenger",
+                    '{"verdict": "FAIL", "feedback": "Concrete conflict.", "next_action":"acquire_evidence", "target":"Fetch the original source to resolve the conflict."}',
                     '{"verdict": "UNCERTAIN", "feedback": "Evidence is insufficient."}',
                 ]
             )
-            self.subtask_outputs = iter(["Initial evidence.", "New inconclusive evidence."])
+            self.subtask_outputs = iter(["Initial evidence.", "challenger"])
 
         def create(self, **kwargs):
             content = (
