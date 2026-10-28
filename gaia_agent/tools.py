@@ -134,7 +134,7 @@ def search_web(query: str, max_results: int) -> str:
 
 
 HTML_DOWNLOAD_LIMIT = 3_000_000
-PDF_DOWNLOAD_LIMIT = 20_000_000
+PDF_DOWNLOAD_LIMIT = 50_000_000
 
 
 def bounded_response_body(response) -> bytes:
