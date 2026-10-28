@@ -127,3 +127,42 @@ Stable v4 retains the source-list mechanism because recipe extraction reproduced
 and the combined run improved. Botanical classification remains explicitly
 unresolved despite one earlier correct full-run answer. It must not be presented
 as a reliable fix. Other unchanged tasks can still regress on the next run.
+
+
+## R6: bounded PDF access
+
+Runtime commit `c5c7ebb`, run `full_20261028T034633Z`, official **15/20**,
+348,129 chat tokens (R5: 350,250). 59 unit tests passed. Config and run trace
+both request `gpt-4.1-mini`; audio uses `gpt-4o-mini-transcribe` by default.
+No model switch was made.
+
+The funding-task trace exposed a concrete capability failure: the paper PDF was
+rejected by the shared 3 MB limit. A first 20 MB budget still failed; the public
+response reported 33,306,077 bytes. The final implementation streams the body,
+recognizes PDF by magic bytes, caps PDFs at 50 MB and other content at 3 MB,
+closes responses on errors, and retains the beginning and end of long PDF text.
+It has no task IDs, paper URLs or award numbers embedded in runtime code.
+The paper became readable and the funding answer was correct in targeted and
+full tests. The critic still lacked the precise funding passage because raw
+observations are truncated before evidence-packet construction. This is a
+separate context-delivery problem for a future bounded source-reread mechanism.
+
+Per-task comparison with R5: funding and classification gained; actor, spreadsheet
+and historical-first-name outputs regressed. Net minus one. The classification
+path did not change; its gain is not evidence of a new semantic fix. The three
+regressions cannot be causally attributed to the PDF fix from this comparison.
+
+Remaining five misses inspected individually:
+- Video: generic bird-group summaries still fail to distinguish simultaneous species.
+- Historical roster: current roster still substituted for the requested historical date.
+- Actor: identity found, downstream role search failed; synthesis returned the actor's
+  first name instead of the character's first name.
+- Spreadsheet: a dessert category again omitted despite only drinks being excluded.
+- Historical first name: correct person approached, but response included an extra
+  given-name component; historical-nationality evidence remained incomplete.
+
+Decision: retain the complete R6 experiment on `experiment/bounded-pdf-r6`;
+do not replace the evaluated R5 default on one lower-scoring run. Record the
+confirmed PDF capability repair separately from end-to-end benchmark variance.
+All source snapshots, targeted traces and submissions remain local. No scores
+are assembled by mixing answer sets.
