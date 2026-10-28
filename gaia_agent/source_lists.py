@@ -32,6 +32,9 @@ def render_list(report, spec):
     rows = report.get('items')
     if not isinstance(rows, list) or not rows:
         raise ValueError('items must be a nonempty list')
+    exclusions = report.get('exclusion_criteria', [])
+    if not isinstance(exclusions, list) or not all(isinstance(x, str) and x.strip() for x in exclusions):
+        raise ValueError('invalid exclusion criteria')
     names = []
     selected = []
     for row in rows:
@@ -47,7 +50,11 @@ def render_list(report, spec):
         names.append(text)
         if spec['mode'] == 'extract' and text not in spec['source']:
             raise ValueError('item must be a contiguous original-source span; do not paraphrase')
-        if row['include']:
+        excluded = row.get('excluded_by', [])
+        if spec['mode'] == 'classify' and (not isinstance(excluded, list) or len(excluded) != len(exclusions)
+                or any(type(x) is not bool for x in excluded)):
+            raise ValueError('every item must decide every explicit exclusion criterion')
+        if row['include'] and not any(excluded):
             selected.append(text)
     if spec['mode'] == 'classify' and set(names) != set(spec['items']):
         raise ValueError('classify EVERY original input item exactly once, without adding items')
@@ -63,7 +70,11 @@ def solve_source_list(agent, question, context, trace):
     prompt = (
         'Handle a source-grounded list task. Return JSON {"items":['
         '{"text":"exact original item/ingredient phrase","include":true,"basis":"brief factual basis"}]}. '
-        'For classification: account for EVERY input item exactly once, including exclusions. '
+        'For classification: also return exclusion_criteria (a list of the explicit exclusion rules from the question). '
+        'For EVERY input item, return excluded_by (one boolean per exclusion criterion). '
+        'First evaluate whether each item matches each exclusion definition, independently of whether it is '
+        'commonly called a member of the target category. The program will remove ANY item that matches '
+        'ANY exclusion, even if include is true. Include every input item exactly once. '
         'Apply the precise definition and exclusions in the question, not everyday labels. '
         'Do not invent additional exclusion criteria. An item can belong to more than one category. '
         'For extraction: include all relevant source items; preserve complete original phrases and '

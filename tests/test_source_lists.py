@@ -53,3 +53,14 @@ def test_contract_repair_is_bounded_and_falls_back():
     q='List ingredients alphabetized, comma separated.'
     assert solve_source_list(agent,q,q+'\nTranscript of a.mp3:\nUse cloves.',Trace('test',q)) is None
     assert len(calls)==2
+
+
+def test_explicit_exclusion_overrides_category_membership():
+    spec=dict(mode='classify', items=['large red box','small red box'])
+    report={'exclusion_criteria':['large objects'], 'items':[
+        dict(row('large red box'),excluded_by=[True]),
+        dict(row('small red box'),excluded_by=[False])]}
+    assert render_list(report,spec)=='small red box'
+    report['items'][0]['excluded_by']=[]
+    with pytest.raises(ValueError,match='every explicit exclusion'):
+        render_list(report,spec)
