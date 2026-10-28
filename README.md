@@ -20,28 +20,32 @@ This project composes Modules 0–11 around the Hugging Face Final Assignment ad
 ## Evaluation iterations
 
 Versions below track the same 20-question development set, not course-module
-numbers. Every row is a complete fresh run submitted to the official scorer;
+numbers. R0 is the basic full-harness version, not the earlier Modules 0–3-only
+agent. It already includes the GAIA adapter and basic task-facing tools. Every
+row is a complete fresh run submitted to the official scorer;
 failed experiments are retained in Git, without mixing answers across runs.
 
 | Version / runtime commit | Score | Chat tokens | Change and reason | Feedback |
 |---|---:|---:|---|---|
-| R0 · `ea7a1dd` | 14/20 | 431,574 | Replace broad replanning with targeted evidence recovery and separate format repair. | Reference checkpoint; fewer unproductive model calls. |
-| R1 · `25ac623` | 12/20 | 507,325 | Add completion contracts and visual reinspection to prevent missing evidence from becoming a factual premise. | Regression: overly strict unavailable answers; nested timestamps and illegal FEN bypassed reinspection. Not promoted. |
-| R2 · `64f0b01` | 13/20 | 489,813 | Fix reinspection branches and relax the unavailable-answer policy. | Execution improved, but visual recognition and semantic classification remained wrong. Still below R0; restored R0. |
-| R3 · `392ad9c` | 15/20 | 413,810 | Preserve recipe phrases as exact source spans; account for every list item, research technical definitions, and apply exclusions in code. | Recipe and botanical-list targets improved; unrelated spreadsheet and historical-nationality answers regressed. Classification was not yet stable. |
-| R4 · `042b2e3` | **16/20** | **350,250** | Direct grid transcription still failed, so crop and label chessboard cells, identify pieces, map coordinates in code, then call the engine. | Chess repair reproduced in targeted and full tests. Recipe remained correct; botanical classification regressed. Current checkpoint. |
+| R0 · Base (archived source snapshot) | 11/20 | 346,674 | Compose the basic course-module implementations with the GAIA adapter and tools, before the subsequent GAIA-focused optimization rounds. | Starting full-harness baseline: modules were present, but retrieval, routing and evidence handling still caused failures. |
+| R1 · `ea7a1dd` | 14/20 | 431,574 | Replace broad replanning with targeted evidence recovery and separate format repair. | Reference checkpoint; fewer unproductive model calls. |
+| R2 · `25ac623` | 12/20 | 507,325 | Add completion contracts and visual reinspection to prevent missing evidence from becoming a factual premise. | Regression: overly strict unavailable answers; nested timestamps and illegal FEN bypassed reinspection. Not promoted. |
+| R3 · `64f0b01` | 13/20 | 489,813 | Fix reinspection branches and relax the unavailable-answer policy. | Execution improved, but visual recognition and semantic classification remained wrong. Still below R1; restored R1. |
+| R4 · `392ad9c` | 15/20 | 413,810 | Preserve recipe phrases as exact source spans; account for every list item, research technical definitions, and apply exclusions in code. | Recipe and botanical-list targets improved; unrelated spreadsheet and historical-nationality answers regressed. Classification was not yet stable. |
+| R5 · `042b2e3` | **16/20** | **350,250** | Direct grid transcription still failed, so crop and label chessboard cells, identify pieces, map coordinates in code, then call the engine. | Chess repair reproduced in targeted and full tests. Recipe remained correct; botanical classification regressed. Current checkpoint. |
 
-R4 uses **18.8% fewer chat tokens** than R0. The clearest reproduced repairs are
+R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
 recipe wording and chess perception-to-engine execution. The actor answer also
 became correct while a funding identifier regressed, giving **three gains minus
-one regression = two net gains** over R0. Those unchanged web paths vary between
+one regression = two net gains** over R1. Those unchanged web paths vary between
 runs; this is not a controlled causal ablation or proof of generalization.
 
 Remaining failures: video species distinctions, ambiguous botanical membership,
 retrieving a paper's funding statement, and finding a complete historical roster.
-R4 passes 56 local tests; tests validate execution contracts, not factual accuracy.
-Token totals exclude audio transcription. Stable tags preserve R0/R3/R4, and
-experiment branches retain R1/R2. Raw traces and attachments remain local.
+R5 passes 56 local tests; tests validate execution contracts, not factual accuracy.
+Token totals exclude audio transcription. R0 is preserved as a local source
+snapshot. Stable tags preserve R1/R4/R5, and
+experiment branches retain R2/R3. Raw traces and attachments remain local.
 See the [per-question ledger](FAILURE_ANALYSIS.md) and [metrics](EVALUATION.md)
 for diagnoses, rejected approaches, and proposed next fixes.
 
