@@ -185,3 +185,21 @@ def cloud_chess_analysis(fen: str) -> str:
         f"Principal variation (UCI): {' '.join(moves[:8])}. "
         f"Evaluation: cp={principal_variation.get('cp')}, mate={principal_variation.get('mate')}."
     )
+
+
+def inspection_timestamps(report):
+    """Accept top-level or nested observation timestamps; cap reinspection work."""
+    values = []
+    def visit(node):
+        if isinstance(node, dict):
+            times = node.get('inspect_seconds', [])
+            if isinstance(times, list):
+                values.extend(t for t in times if type(t) in (int, float) and math.isfinite(t) and t >= 0)
+            for key, value in node.items():
+                if key != 'inspect_seconds':
+                    visit(value)
+        elif isinstance(node, list):
+            for value in node:
+                visit(value)
+    visit(report)
+    return list(dict.fromkeys(values))[-3:]

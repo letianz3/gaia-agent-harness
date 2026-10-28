@@ -93,8 +93,6 @@ def run_plan(agent, question, context, registry, trace, feedback='', evidence=''
                  '"evidence":["source URL and exact relevant observation, or supplied-input quote"], '
                  '"missing":["unresolved prerequisite"]}. FOUND requires all assigned facts supported. '
                  'For extraction, preserve original wording and modifiers; remove only requested measurements. '
-                 'For classification, include a compact decision for EVERY input item, including uncertain items. '
-                 'For historical rosters, establish the requested year and complete relevant number sequence. '
                  'If a page is empty or inaccessible, try a different primary source or native-language query '
                  'within the remaining turn budget. Do not repeat an unchanged blocked source.'},
                 {'role':'user','content':agent._subtask_user_content(context,
@@ -130,7 +128,7 @@ def run_plan(agent, question, context, registry, trace, feedback='', evidence=''
     else:
         final_context.append({'type':'text','text':evidence_text})
     response = agent._plain_completion([
-        {'role':'system','content':'Synthesize only the requested final answer from evidence. Check original constraints, dates, completeness and contradictions. Never invent missing facts. FOUND is a worker claim, not proof. Preserve original source wording in extraction tasks. If prerequisite evidence is missing, explicitly report unavailable rather than guessing.'},
+        {'role':'system','content':'Synthesize only the requested final answer from evidence. Check original constraints, dates, completeness and contradictions. Never invent missing facts. FOUND is a worker claim, not proof. Preserve original source wording in extraction tasks. Return only the requested submission value: counts as numbers, names alone, and no explanation or unsolicited units.'},
         {'role':'user','content':final_context}
     ])
     trace.add_usage(getattr(response, 'usage', None))

@@ -245,7 +245,8 @@ class BaselineAgent:
         report = read_json_object(overview)
         available = list(media_dir.glob('frame_*.png'))
         selected = []
-        for timestamp in (report.get('inspect_seconds') or [])[:3]:
+        from .media_tools import inspection_timestamps
+        for timestamp in inspection_timestamps(report):
             if isinstance(timestamp, (int, float)) and available:
                 path = min(available, key=lambda p: abs(float(p.stem[6:]) - timestamp))
                 if path not in selected:
@@ -280,20 +281,27 @@ class BaselineAgent:
             trace,
             "chess_vision_call",
         )
-        fen = extract_fen(raw_fen)
+        fen, analysis, needs_reinspection = None, "", False
         try:
-            analysis = cloud_chess_analysis(fen)
-        except Exception as exc:  # noqa: BLE001 - preserve useful FEN when cloud eval is absent.
-            analysis = f"Cloud engine lookup failed: {type(exc).__name__}: {exc}"
-        # A contradictory evaluation warrants ONE fresh visual transcription, not more
-        # analysis of the same potentially incorrect board.
-        negative = re.search(r"Side-to-move score: cp=(-\d+)", analysis)
-        if negative and int(negative.group(1)) < -150 and re.search(r"win|winning|mate", question, re.I):
+            fen = extract_fen(raw_fen)
+        except ValueError:
+            needs_reinspection = True
+        if fen:
+            try:
+                analysis = cloud_chess_analysis(fen)
+            except Exception as exc:
+                analysis = f"Engine lookup failed: {type(exc).__name__}: {exc}"
+            negative = re.search(r"Side-to-move score: cp=(-\d+)", analysis)
+            needs_reinspection = bool(negative and int(negative.group(1)) < -150
+                                      and re.search(r"win|winning|mate", question, re.I))
+        if needs_reinspection:
             revised = self._vision_observation(
-                "Independently transcribe the original chess image. Read coordinate labels, then list "
-                "every occupied square with piece color/type. Prior engine analysis contradicts the "
-                "task; the earlier board may be wrong. Do not change pieces to force a winning result. "
-                f"Return final FEN on its own line. Task: {question}",
+                "Independently transcribe the original chess image. Read coordinate labels carefully: "
+                "files may run h to a and ranks 1 to 8. Enumerate each occupied square and its color/type. "
+                "Prior transcription was illegal or contradicted the task. Check pawns, queens and bishops "
+                "especially carefully; do not move pieces to force an expected outcome. "
+                "Do NOT suggest a move. Return final FEN on its own line. "
+                f"Task: {question}",
                 [image_path], trace, "chess_reinspection",
             )
             revised_fen = extract_fen(revised)
@@ -578,8 +586,8 @@ class BaselineAgent:
             {
                 "role": "user",
                 "content": (
-                    "Tool budget is exhausted. Return only your best concise subtask result now."
-                    if phase == "subtask"
+                    "Tool budget is exhausted. Return your subtask report in the format required by the system message; mark unsupported gaps explicitly."
+                    if phase in {"subtask", "researcher", "analyst", "media", "generalist"}
                     else "Tool budget is exhausted. Return only your best exact-match answer now."
                 ),
             }

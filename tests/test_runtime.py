@@ -67,7 +67,7 @@ def test_dag_passes_evidence_and_restricts_specialist_tools(tmp_path):
     received = []
     def loop(messages, registry, *args, **kwargs):
         received.append((messages, registry.names()))
-        return 'actor evidence' if len(received)==1 else '42'
+        return json.dumps(dict(status='FOUND', result='actor evidence' if len(received)==1 else '42', evidence=['observed input'], missing=[]))
     agent._run_tool_loop = loop
     registry = ToolRegistry()
     for name in ['search_web', 'run_python']:
@@ -104,11 +104,11 @@ def test_independent_specialists_overlap(tmp_path):
     barrier = threading.Barrier(2)
     def loop(*args, **kwargs):
         barrier.wait(timeout=2)
-        return 'evidence'
+        return json.dumps(dict(status='FOUND', result='evidence', evidence=['observed input'], missing=[]))
     agent._run_tool_loop = loop
     trace = Trace('id', 'q')
     run_plan(agent, 'q', 'q', ToolRegistry(), trace)
-    assert all(e['status']=='COMPLETED' for e in trace.events if e['type']=='subtask_result')
+    assert all(e['status']=='FOUND' for e in trace.events if e['type']=='subtask_result')
 
 
 def test_dependency_failure_prevents_downstream_execution(tmp_path):
@@ -126,3 +126,25 @@ def test_dependency_failure_prevents_downstream_execution(tmp_path):
     run_plan(agent, 'q', 'q', ToolRegistry(), trace)
     assert len(calls)==1
     assert all(e['status']=='FAILED' for e in trace.events if e['type']=='subtask_result')
+
+
+@pytest.mark.parametrize('report', [
+    {'status':'NOT_FOUND', 'result':'missing'},
+    {'status':'FOUND', 'result':'guessed', 'evidence':[]},
+    {'status':'FOUND', 'result':'partial', 'evidence':['source'], 'missing':['identity']},
+])
+def test_semantically_incomplete_dependency_is_not_executed(tmp_path, report):
+    plan = [dict(id='A', agent='researcher', task='Identity', depends_on=[]),
+            dict(id='B', agent='researcher', task='Role of that identity', depends_on=['A'])]
+    replies = iter([response(json.dumps(plan)), response('unavailable')])
+    agent = BaselineAgent(settings(tmp_path), client=object())
+    agent._plain_completion = lambda messages: next(replies)
+    calls = []
+    def loop(*args, **kwargs):
+        calls.append(1)
+        return json.dumps(report)
+    agent._run_tool_loop = loop
+    trace = Trace('id', 'q')
+    run_plan(agent, 'q', 'q', ToolRegistry(), trace)
+    assert len(calls) == 1
+    assert not any(e.get('status') == 'FOUND' for e in trace.events)

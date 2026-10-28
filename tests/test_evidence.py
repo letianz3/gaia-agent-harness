@@ -108,3 +108,40 @@ def test_fenced_json_support_and_non_object_responses():
     evidence = '{"id":"E0","kind":"observation","excerpt":"observed green leaves"}'
     assert has_valid_support('```json\n{"support":[{"id":"E0","quote":"green leaves"}]}\n```', evidence)
     assert not has_valid_support('[]', evidence)
+
+
+def test_empty_html_is_not_successful_evidence(monkeypatch):
+    import gaia_agent.tools as tools
+    monkeypatch.setattr(tools, '_validate_public_url', lambda u:u)
+    response = SimpleNamespace(is_redirect=False, content=b'<html></html>',
+                               text='<html><script>data</script></html>', raise_for_status=lambda:None)
+    monkeypatch.setattr(tools.requests, 'get', lambda *a, **k: response)
+    with pytest.raises(ValueError, match='Empty page'):
+        fetch_url('https://example.org')
+
+
+def test_nested_visual_timestamps_are_bounded_and_valid():
+    from gaia_agent.media_tools import inspection_timestamps
+    assert inspection_timestamps({'observations':[
+        {'inspect_seconds':[1,2]}, {'inspect_seconds':[3,4,True,-1,float('nan')]}]}) == [2,3,4]
+    assert inspection_timestamps({'inspect_seconds':'bad'}) == []
+
+
+def test_illegal_visual_board_gets_one_independent_reinspection(monkeypatch, tmp_path):
+    from gaia_agent.agent import BaselineAgent
+    from gaia_agent.tracing import Trace
+    import gaia_agent.agent as module
+    agent = object.__new__(BaselineAgent)
+    path = tmp_path / 'board.png'
+    path.write_bytes(b'test image placeholder')
+    monkeypatch.setattr(module, 'resolve_task_file', lambda *args:path)
+    valid = '8/8/8/8/8/2k5/8/K7 w - - 0 1'
+    replies = iter(['invalid position', valid])
+    calls = []
+    def vision(*args):
+        calls.append(args[-1])
+        return next(replies)
+    monkeypatch.setattr(agent, '_vision_observation', vision)
+    monkeypatch.setattr(module, 'cloud_chess_analysis', lambda fen:'engine observation')
+    assert valid in agent._analyze_chess_position('board.png','Find a move',tmp_path,Trace('id','q'))
+    assert calls == ['chess_vision_call','chess_reinspection']
