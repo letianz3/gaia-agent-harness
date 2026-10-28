@@ -181,3 +181,31 @@ def cloud_chess_analysis(fen: str) -> str:
         f"Principal variation (UCI): {' '.join(moves[:8])}. "
         f"Evaluation: cp={principal_variation.get('cp')}, mate={principal_variation.get('mate')}."
     )
+
+
+def grid_to_fen(grid):
+    """Map visual screen cells to chess coordinates without LLM FEN arithmetic."""
+    import chess
+    if not isinstance(grid, dict):
+        raise ValueError('board must be an object')
+    files = grid.get('files_left_to_right')
+    ranks = grid.get('ranks_top_to_bottom')
+    rows = grid.get('rows')
+    turn = grid.get('turn')
+    if files not in ('abcdefgh','hgfedcba') or ranks not in ('12345678','87654321'):
+        raise ValueError('read coordinate labels: files/ranks must be ordered axis strings')
+    if not isinstance(rows,list) or len(rows)!=8 or any(
+            not isinstance(r,str) or not re.fullmatch(r'[.PNBRQKpnbrqk]{8}',r) for r in rows):
+        raise ValueError('rows must contain exactly eight strings, eight cells each; use dots for empty squares')
+    if turn not in ('w','b'):
+        raise ValueError('turn must be w or b')
+    board=chess.Board(None)
+    for y,row in enumerate(rows):
+        for x,piece in enumerate(row):
+            if piece!='.':
+                board.set_piece_at(chess.parse_square(files[x]+ranks[y]),chess.Piece.from_symbol(piece))
+    board.turn=turn=='w'
+    # A still image cannot establish move-history-dependent castling/en-passant rights.
+    if not board.is_valid():
+        raise ValueError('illegal board inventory; recheck coordinates, colors, king safety and piece counts')
+    return board.fen()

@@ -187,7 +187,7 @@ class BaselineAgent:
         raise RuntimeError(f"LLM request failed: {last_error}")
 
     def _vision_observation(
-        self, prompt: str, image_paths: list[Path], trace: Trace, event_type: str
+        self, prompt: str, image_paths: list[Path], trace: Trace, event_type: str, json_output: bool = False
     ) -> str:
         content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
         content.extend(
@@ -199,6 +199,7 @@ class BaselineAgent:
             model=self.settings.model,
             messages=[{"role": "user", "content": content}],
             temperature=self.settings.temperature,
+            **({"response_format": {"type": "json_object"}} if json_output else {}),
         )
         trace.add_usage(getattr(response, "usage", None))
         result = response.choices[0].message.content or ""
@@ -248,22 +249,34 @@ class BaselineAgent:
         image_path = resolve_task_file(task_dir, file_name)
         if image_path.suffix.lower() not in IMAGE_SUFFIXES:
             raise ValueError("the chess attachment must be an image file")
-        raw_fen = self._vision_observation(
-            "Transcribe this chessboard into one complete FEN string. In the piece-placement "
-            "field use only PNBRQK, pnbrqk, digits 1-8, and slashes—never descriptive letters. "
-            "Infer board orientation from coordinates when visible and use the task wording "
-            "to infer side to move. "
-            f"Return only FEN. Task: {question}",
-            [image_path],
-            trace,
-            "chess_vision_call",
+        from .media_tools import grid_to_fen
+        prompt = (
+            'Transcribe the board as a SCREEN GRID, not as FEN, and do not suggest a move. '
+            'Read all file/rank labels first. Each row is in left-to-right SCREEN order; '
+            'rows run top-to-bottom on SCREEN, even if the board is rotated. '
+            'Return JSON with files_left_to_right (eight letters), ranks_top_to_bottom '
+            '(eight digits), turn (w or b from the task), rows (eight strings of exactly '
+            'eight characters). Use . for empty, uppercase PNBRQK for white pieces, '
+            'lowercase pnbrqk for black pieces. Count all 64 cells and preserve empty cells. '
+            f'Task: {question}'
         )
-        fen = extract_fen(raw_fen)
-        try:
+        error = ''
+        for attempt in range(2):
+            raw = self._vision_observation(prompt + error, [image_path], trace,
+                                           'chess_grid_call', json_output=True)
+            try:
+                grid = read_json_object(raw)
+                fen = grid_to_fen(grid)
+            except ValueError as exc:
+                trace.add('chess_grid_rejected', attempt=attempt, reason=str(exc))
+                error = f'\nThe previous transcription failed validation: {exc}. Reinspect the ORIGINAL image.'
+                continue
             analysis = cloud_chess_analysis(fen)
-        except Exception as exc:  # noqa: BLE001 - preserve useful FEN when cloud eval is absent.
-            analysis = f"Cloud engine lookup failed: {type(exc).__name__}: {exc}"
-        return f"Legally valid image-derived FEN (visual transcription may still be wrong): {fen}\n{analysis}"
+            trace.add('chess_grid_validated', grid=grid, fen=fen,
+                      scope='Legal inventory only; visual accuracy is not proven')
+            return (f'Image-derived board, coordinates mapped by code: {fen}\n{analysis}\n'
+                    'Assumes no castling or en-passant rights, which a still image cannot establish.')
+        raise ValueError('Could not obtain a valid image grid after two inspections')
 
     @staticmethod
     def _message_to_text(message: Any) -> str:
