@@ -155,3 +155,21 @@ def test_next_step_can_reuse_previously_retrieved_evidence(monkeypatch):
         return json.dumps(next(replies))
     agent=SimpleNamespace(_run_tool_loop=loop)
     assert solve_entity(agent,'Give only the first name',ToolRegistry(),trace)=='Robin'
+
+
+def test_terminal_loop_keeps_explicit_json_contract(monkeypatch):
+    from gaia_agent.agent import BaselineAgent
+    from gaia_agent.registry import ToolRegistry
+    agent=object.__new__(BaselineAgent)
+    agent.settings=SimpleNamespace(parallel_tools_enabled=False)
+    agent._compress_history=lambda messages,*args:messages
+    calls=[]
+    def complete(messages,**kwargs):
+        calls.append((messages,kwargs))
+        return SimpleNamespace(usage=None,choices=[SimpleNamespace(message=SimpleNamespace(content='{"status":"NOT_FOUND"}'))])
+    agent._plain_completion=complete
+    result=agent._run_tool_loop([],ToolRegistry(),Trace('test','test'),0,'subtask',
+                               final_instruction='Return the typed JSON contract',final_json=True)
+    assert result=='{"status":"NOT_FOUND"}'
+    assert calls[0][0][-1]['content']=='Return the typed JSON contract'
+    assert calls[0][1]['response_format']=={'type':'json_object'}
