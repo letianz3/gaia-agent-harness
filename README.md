@@ -34,6 +34,8 @@ failed experiments are retained in Git, without mixing answers across runs.
 | R4 · `392ad9c` | 15/20 | 413,810 | Preserve recipe phrases as exact source spans; account for every list item, research technical definitions, and apply exclusions in code. | Recipe and botanical-list targets improved; unrelated spreadsheet and historical-nationality answers regressed. Classification was not yet stable. |
 | R5 · `042b2e3` | **16/20** | **350,250** | Direct grid transcription still failed, so crop and label chessboard cells, identify pieces, map coordinates in code, then call the engine. | Chess repair reproduced in targeted and full tests. Recipe remained correct; botanical classification regressed. Current checkpoint. |
 
+| R6 · `c5c7ebb` | 15/20 | 348,129 | A source PDF exceeded the shared 3 MB cap. Add bounded streaming with a separate 50 MB PDF budget and retain long-document tails. | Funding repair reproduced, but actor lookup, spreadsheet membership and name formatting regressed. Not promoted; retain R5 pending broader validation. |
+
 R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
 recipe wording and chess perception-to-engine execution. The actor answer also
 became correct while a funding identifier regressed, giving **three gains minus

@@ -1,5 +1,11 @@
 # Evidence acquisition and verification experiment
 
+R6 PDF-access experiment: **15/20**, 348,129 chat tokens, runtime `c5c7ebb`.
+The target funding repair reproduced, but three other tasks regressed against
+R5. R6 is retained as an experiment; the default remains the 16/20 R5 checkpoint.
+See [per-task ledger](FAILURE_ANALYSIS.md) for the diagnosis and model configuration.
+
+
 Latest evaluated checkpoint: **16/20 (80%)**, runtime commit `042b2e3`, run
 `full_20261028T032004Z`. 350,250 chat tokens versus 431,574 at 14/20 (-18.8%).
 56 unit tests passed. See [per-task ledger](FAILURE_ANALYSIS.md) for the complete
