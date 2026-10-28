@@ -249,7 +249,35 @@ class BaselineAgent:
         image_path = resolve_task_file(task_dir, file_name)
         if image_path.suffix.lower() not in IMAGE_SUFFIXES:
             raise ValueError("the chess attachment must be an image file")
-        from .media_tools import grid_to_fen
+        from .media_tools import grid_to_fen, chess_cell_sheets, cell_maps_to_grid
+        try:
+            sheets = chess_cell_sheets(image_path, task_dir.parent / 'chess_cells')
+        except ValueError as exc:
+            trace.add('chess_segmentation_unavailable', reason=str(exc))
+        else:
+            axes = read_json_object(self._vision_observation(
+                'Read ONLY the printed coordinate labels and side to move. Return JSON with '
+                'files_left_to_right (eight letters), ranks_top_to_bottom (eight digits), '
+                f'turn (w or b). Do not identify pieces. Task: {question}',
+                [image_path], trace, 'chess_axes_call', json_output=True))
+            batches=[]
+            for batch, sheet in enumerate(sheets):
+                batches.append(read_json_object(self._vision_observation(
+                    'Identify the chess piece in EACH labelled cell independently. Ignore tiny '
+                    'coordinate letters inside the original tile. Uppercase PNBRQK = white; '
+                    'lowercase pnbrqk = black; . = empty. Never infer an opening or a legal position. '
+                    'Return a flat JSON object mapping ALL 32 rNcN labels to one symbol each. '
+                    f'This sheet contains screen rows {batch*4} through {batch*4+3}, columns 0 through 7.',
+                    [sheet], trace, 'chess_cells_call', json_output=True)))
+            try:
+                grid=cell_maps_to_grid(axes,batches)
+                fen=grid_to_fen(grid)
+            except ValueError as exc:
+                trace.add('chess_cells_rejected', reason=str(exc))
+            else:
+                trace.add('chess_grid_validated', grid=grid, fen=fen,
+                          scope='Coordinate mapping and legality; visual accuracy remains model-dependent')
+                return f'Cell-by-cell image-derived FEN: {fen}\n{cloud_chess_analysis(fen)}'
         prompt = (
             'Transcribe the board as a SCREEN GRID, not as FEN, and do not suggest a move. '
             'Read all file/rank labels first. Each row is in left-to-right SCREEN order; '

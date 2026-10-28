@@ -209,3 +209,54 @@ def grid_to_fen(grid):
     if not board.is_valid():
         raise ValueError('illegal board inventory; recheck coordinates, colors, king safety and piece counts')
     return board.fen()
+
+
+def chess_cell_sheets(image_path, output_dir):
+    """Detect flat two-color digital boards; refuse photos/non-regular grids."""
+    from collections import Counter
+    image=Image.open(image_path).convert('RGB')
+    counts=Counter(image.getdata())
+    colors=[color for color,_ in counts.most_common(2)]
+    if len(colors)!=2 or sum(counts[c] for c in colors)<image.width*image.height*0.4:
+        raise ValueError('not a flat two-color digital board')
+    import numpy as np
+    pixels=np.asarray(image)
+    mask=np.all(pixels==colors[0],axis=2)|np.all(pixels==colors[1],axis=2)
+    ys,xs=np.nonzero(mask)
+    left=int(xs.min()); right=int(xs.max())+1
+    top=int(ys.min()); bottom=int(ys.max())+1
+    if abs((right-left)/(bottom-top)-1)>0.1:
+        raise ValueError('detected board is not square')
+    cells=[]; backgrounds=[]
+    for row in range(8):
+        for col in range(8):
+            cell=image.crop((round(left+col*(right-left)/8), round(top+row*(bottom-top)/8),
+                             round(left+(col+1)*(right-left)/8), round(top+(row+1)*(bottom-top)/8)))
+            cc=Counter(cell.getdata())
+            backgrounds.append(0 if cc[colors[0]]>cc[colors[1]] else 1)
+            cells.append(cell)
+    matches=sum(backgrounds[i]==(backgrounds[0]^((i//8+i%8)%2)) for i in range(64))
+    if matches<62:
+        raise ValueError('could not validate the alternating 8x8 grid')
+    output_dir.mkdir(parents=True,exist_ok=True)
+    paths=[]
+    for batch in range(2):
+        sheet=Image.new('RGB',(8*112,4*136),'white'); draw=ImageDraw.Draw(sheet)
+        for local in range(32):
+            index=batch*32+local; x=(local%8)*112; y=(local//8)*136
+            cell=cells[index].copy(); cell.thumbnail((104,104))
+            sheet.paste(cell,(x+4,y+24));draw.text((x+4,y+5),f'r{index//8}c{index%8}',fill='black')
+        path=output_dir/f'cells_{batch}.png';sheet.save(path);paths.append(path)
+    return paths
+
+
+def cell_maps_to_grid(axes, batches):
+    cells={}
+    for batch in batches:
+        if not isinstance(batch,dict) or set(cells)&set(batch):
+            raise ValueError('invalid or duplicate cell map')
+        cells.update(batch)
+    expected={f'r{r}c{c}' for r in range(8) for c in range(8)}
+    if set(cells)!=expected or any(not isinstance(p,str) or not re.fullmatch(r'[.PNBRQKpnbrqk]',p) for p in cells.values()):
+        raise ValueError('each of the 64 labelled cells requires exactly one piece symbol or dot')
+    return dict(axes, rows=[''.join(cells[f'r{r}c{c}'] for c in range(8)) for r in range(8)])
