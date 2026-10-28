@@ -568,7 +568,7 @@ class BaselineAgent:
                     turn=turn,
                     name=name,
                     arguments=arguments_json,
-                    result=result[:10_000],
+                    result=result,
                     succeeded=succeeded,
                     blocked=blocked,
                     parallel_batch=parallel,
@@ -1030,7 +1030,10 @@ Respond ONLY as JSON:
         trace.add('input_evidence', name='original_task_and_transcripts',
                   result=self._message_to_text({'role': 'user', 'content': task_context}))
         from .source_lists import solve_source_list
-        source_answer = solve_source_list(self, question, task_context, trace, registry)
+        from .typed_workflows import solve_typed_task
+        source_answer = solve_typed_task(self, question, files, registry, trace)
+        if source_answer is None:
+            source_answer = solve_source_list(self, question, task_context, trace, registry)
         if source_answer is not None:
             answer = source_answer
         elif self.settings.planning_enabled or self.settings.multi_agent_enabled:
