@@ -234,13 +234,33 @@ class BaselineAgent:
         sheets = sample_video_contact_sheets(
             video_path, media_dir, timestamps_seconds
         )
-        return audio_note + "\n" + self._vision_observation(
-            "Inspect these timestamped frames from a YouTube video. Describe only visual "
-            f"evidence relevant to this task; do not guess dialogue. Task: {question}",
-            sheets,
-            trace,
-            "video_vision_call",
+        overview = self._vision_observation(
+            "Inspect timestamped frames. Identify observations relevant to the task, with timestamps. "
+            "For species counts, distinguish species by visible traits, not generic groups; "
+            "juveniles are not automatically a separate species. Count only simultaneous visibility. "
+            "Return JSON with observation (text), and inspect_seconds (up to 3 timestamps needing "
+            f"close inspection to settle the answer). Task: {question}",
+            sheets, trace, "video_vision_call",
         )
+        report = read_json_object(overview)
+        available = list(media_dir.glob('frame_*.png'))
+        selected = []
+        for timestamp in (report.get('inspect_seconds') or [])[:3]:
+            if isinstance(timestamp, (int, float)) and available:
+                path = min(available, key=lambda p: abs(float(p.stem[6:]) - timestamp))
+                if path not in selected:
+                    selected.append(path)
+        if selected:
+            detail = self._vision_observation(
+                f"Task: {question}\nInspect these original frames independently. "
+                "List visible entities, identifying traits and simultaneous counts. Distinguish species "
+                "from age differences. State uncertainty; do not merely repeat the overview. "
+                f"Frame timestamps: {[p.stem for p in selected]}",
+                selected, trace, "video_detail_call",
+            )
+            trace.add('visual_evidence', files=[str(p) for p in selected])
+            return audio_note + "\nOverview: " + overview + "\nOriginal-frame inspection: " + detail
+        return audio_note + "\n" + overview
 
     def _analyze_chess_position(
         self, file_name: str, question: str, task_dir: Path, trace: Trace
@@ -252,8 +272,10 @@ class BaselineAgent:
             "Transcribe this chessboard into one complete FEN string. In the piece-placement "
             "field use only PNBRQK, pnbrqk, digits 1-8, and slashes—never descriptive letters. "
             "Infer board orientation from coordinates when visible and use the task wording "
-            "to infer side to move. "
-            f"Return only FEN. Task: {question}",
+            "to infer side to move. First explicitly enumerate coordinates and ALL occupied squares "
+            "row by row, distinguishing colors and queens from pawns. Check no piece is omitted "
+            "or invented. Do not assume white is at the bottom. "
+            f"Return the square inventory followed by a final line containing only FEN. Task: {question}",
             [image_path],
             trace,
             "chess_vision_call",
@@ -263,6 +285,21 @@ class BaselineAgent:
             analysis = cloud_chess_analysis(fen)
         except Exception as exc:  # noqa: BLE001 - preserve useful FEN when cloud eval is absent.
             analysis = f"Cloud engine lookup failed: {type(exc).__name__}: {exc}"
+        # A contradictory evaluation warrants ONE fresh visual transcription, not more
+        # analysis of the same potentially incorrect board.
+        negative = re.search(r"Side-to-move score: cp=(-\d+)", analysis)
+        if negative and int(negative.group(1)) < -150 and re.search(r"win|winning|mate", question, re.I):
+            revised = self._vision_observation(
+                "Independently transcribe the original chess image. Read coordinate labels, then list "
+                "every occupied square with piece color/type. Prior engine analysis contradicts the "
+                "task; the earlier board may be wrong. Do not change pieces to force a winning result. "
+                f"Return final FEN on its own line. Task: {question}",
+                [image_path], trace, "chess_reinspection",
+            )
+            revised_fen = extract_fen(revised)
+            if revised_fen != fen:
+                fen = revised_fen
+                analysis = cloud_chess_analysis(fen)
         return f"Legally valid image-derived FEN (visual transcription may still be wrong): {fen}\n{analysis}"
 
     @staticmethod

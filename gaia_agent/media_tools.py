@@ -81,6 +81,7 @@ def sample_video_contact_sheets(
     ]
     timestamps = sorted({*uniform, *requested})
 
+    output_dir.mkdir(parents=True, exist_ok=True)
     frames: list[tuple[float, Image.Image]] = []
     try:
         for timestamp in timestamps:
@@ -90,6 +91,7 @@ def sample_video_contact_sheets(
                 continue
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image = Image.fromarray(rgb)
+            image.save(output_dir / f"frame_{timestamp:.1f}.png")
             image.thumbnail((480, 270))
             frames.append((timestamp, image.copy()))
     finally:
@@ -155,7 +157,9 @@ def cloud_chess_analysis(fen: str) -> str:
         with chess.engine.SimpleEngine.popen_uci(engine_path, timeout=15) as engine:
             result = engine.analyse(board, chess.engine.Limit(time=3))
             move = result['pv'][0]
-            return (f"Local engine best move: {board.san(move)} (UCI {move.uci()}). "
+            score = result['score'].pov(board.turn)
+            return (f"Side-to-move score: cp={score.score()}, mate={score.mate()}; positive favors the mover, negative favors the opponent. "
+                    f"Local engine best move: {board.san(move)} (UCI {move.uci()}). "
                     f"Score: {result['score']}; depth: {result.get('depth')}. "
                     'Analysis is conditional on the image-derived FEN being correct.')
 

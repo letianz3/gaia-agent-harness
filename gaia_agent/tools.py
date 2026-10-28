@@ -152,6 +152,8 @@ def fetch_url(url: str) -> str:
         from io import BytesIO
         from pypdf import PdfReader
         text = '\n'.join(page.extract_text() or '' for page in PdfReader(BytesIO(response.content)).pages)
+        if not text.strip():
+            raise ValueError("Empty PDF: no readable evidence; use a different source or OCR")
         return f"SOURCE: {url}\n{text[:30000]}"
     soup = BeautifulSoup(response.text, "html.parser")
     for tag in soup(["script", "style", "noscript", "svg"]):
@@ -161,6 +163,8 @@ def fetch_url(url: str) -> str:
         'verify you are human', 'checking your browser', 'enable javascript and cookies',
         'performing security verification')):
         raise ValueError("Blocked by website challenge; no factual page evidence retrieved")
+    if not text.strip():
+        raise ValueError("Empty page: no readable evidence; try a different source, not the same URL")
     return f"SOURCE: {url}\n{text[:30_000]}"
 
 

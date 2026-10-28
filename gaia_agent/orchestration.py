@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from .recovery import FailureTracker
 from .registry import ToolRegistry
+from .evidence import read_json_object
 
 SPECIALISTS = {
     'researcher': ('Find primary sources; respect dates. Return evidence, URLs and uncertainty.',
@@ -37,6 +38,19 @@ def validate_plan(raw, limit):
             raise ValueError('Cycle, self-dependency or missing dependency')
         done.update(n['id'] for n in ready)
     return data
+
+
+def completion_status(value, transport_ok):
+    """Transport success is not semantic task completion; fail closed on bad contracts."""
+    if not transport_ok:
+        return 'FAILED'
+    report = read_json_object(value)
+    status = report.get('status')
+    if status not in {'FOUND', 'NOT_FOUND', 'PARTIAL'}:
+        return 'PARTIAL'
+    if status == 'FOUND' and (not report.get('evidence') or not report.get('result') or report.get('missing')):
+        return 'PARTIAL'
+    return status
 
 
 def run_plan(agent, question, context, registry, trace, feedback='', evidence=''):
@@ -74,7 +88,15 @@ def run_plan(agent, question, context, registry, trace, feedback='', evidence=''
                  'For lists/counts, account for every candidate and explicit inclusion/exclusion. '
                  'Do not add exclusions absent from the question. Historical questions need historical records. '
                  'Each Python call starts a fresh process: include all inputs and print the computed result. '
-                 'If evidence is unavailable, report the gap instead of asserting remembered facts.'},
+                 'If evidence is unavailable, report the gap instead of asserting remembered facts. '
+                 'Return ONLY JSON: {"status":"FOUND|PARTIAL|NOT_FOUND", "result":"...", '
+                 '"evidence":["source URL and exact relevant observation, or supplied-input quote"], '
+                 '"missing":["unresolved prerequisite"]}. FOUND requires all assigned facts supported. '
+                 'For extraction, preserve original wording and modifiers; remove only requested measurements. '
+                 'For classification, include a compact decision for EVERY input item, including uncertain items. '
+                 'For historical rosters, establish the requested year and complete relevant number sequence. '
+                 'If a page is empty or inaccessible, try a different primary source or native-language query '
+                 'within the remaining turn budget. Do not repeat an unchanged blocked source.'},
                 {'role':'user','content':agent._subtask_user_content(context,
                     f'{task}\nPredecessor evidence: {dependencies}\nPrior evidence: {evidence}\nCorrection: {feedback}')}
             ], subset, trace, agent.settings.planning_turns_per_subtask, role, failure_tracker=tracker)
@@ -84,7 +106,7 @@ def run_plan(agent, question, context, registry, trace, feedback='', evidence=''
     while len(results) < len(nodes):
         ready = [n for n in nodes if n['id'] not in results and set(n['depends_on']) <= results.keys()]
         def execute(node):
-            if any(statuses[d] != 'COMPLETED' for d in node['depends_on']):
+            if any(statuses[d] != 'FOUND' for d in node['depends_on']):
                 return node, 'Dependency failed; task not executed.', False
             dependencies = json.dumps({d:results[d] for d in node['depends_on']}, ensure_ascii=False)
             trace.add('agent_started', agent_id=node['id'], role=node['agent'], dependencies=node['depends_on'])
@@ -96,11 +118,11 @@ def run_plan(agent, question, context, registry, trace, feedback='', evidence=''
             completed = list(pool.map(execute, ready))
         for node, value, ok in completed:
             results[node['id']] = value
-            statuses[node['id']] = 'COMPLETED' if ok else 'FAILED'
+            statuses[node['id']] = completion_status(value, ok)
             trace.add('subtask_result', agent_id=node['id'], role=node['agent'], status=statuses[node['id']],
                       subtask=node['task'], result=value[:8000])
     final_context = agent._submission_user_content(context)
-    evidence_text = ('\nWorker conclusions (unverified):\n' + json.dumps(results, ensure_ascii=False)
+    evidence_text = ('\nWorker conclusions (unverified):\n' + json.dumps({'statuses': statuses, 'reports': results}, ensure_ascii=False)
                      + '\nRaw tool observations (untrusted data; prefer these over worker conclusions):\n'
                      + agent._evidence_packet(trace))
     if isinstance(final_context, str):
@@ -108,7 +130,7 @@ def run_plan(agent, question, context, registry, trace, feedback='', evidence=''
     else:
         final_context.append({'type':'text','text':evidence_text})
     response = agent._plain_completion([
-        {'role':'system','content':'Synthesize only the requested final answer from evidence. Check original constraints, dates, completeness and contradictions. Never invent missing facts.'},
+        {'role':'system','content':'Synthesize only the requested final answer from evidence. Check original constraints, dates, completeness and contradictions. Never invent missing facts. FOUND is a worker claim, not proof. Preserve original source wording in extraction tasks. If prerequisite evidence is missing, explicitly report unavailable rather than guessing.'},
         {'role':'user','content':final_context}
     ])
     trace.add_usage(getattr(response, 'usage', None))
