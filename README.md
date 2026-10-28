@@ -17,7 +17,35 @@ downloaded engines are excluded from Git.
 
 This project composes Modules 0–11 around the Hugging Face Final Assignment adapter. Features remain configurable; `02f_run_all_modules.bat` enables the full stack. Course Module 12 is a production roadmap, not an implemented production-readiness claim.
 
-## Full harness (October 2026)
+## Evaluation iterations
+
+Versions below track the same 20-question development set, not course-module
+numbers. Every row is a complete fresh run submitted to the official scorer;
+failed experiments are retained in Git, without mixing answers across runs.
+
+| Version / runtime commit | Score | Chat tokens | Change and reason | Feedback |
+|---|---:|---:|---|---|
+| R0 · `ea7a1dd` | 14/20 | 431,574 | Replace broad replanning with targeted evidence recovery and separate format repair. | Reference checkpoint; fewer unproductive model calls. |
+| R1 · `25ac623` | 12/20 | 507,325 | Add completion contracts and visual reinspection to prevent missing evidence from becoming a factual premise. | Regression: overly strict unavailable answers; nested timestamps and illegal FEN bypassed reinspection. Not promoted. |
+| R2 · `64f0b01` | 13/20 | 489,813 | Fix reinspection branches and relax the unavailable-answer policy. | Execution improved, but visual recognition and semantic classification remained wrong. Still below R0; restored R0. |
+| R3 · `392ad9c` | 15/20 | 413,810 | Preserve recipe phrases as exact source spans; account for every list item, research technical definitions, and apply exclusions in code. | Recipe and botanical-list targets improved; unrelated spreadsheet and historical-nationality answers regressed. Classification was not yet stable. |
+| R4 · `042b2e3` | **16/20** | **350,250** | Direct grid transcription still failed, so crop and label chessboard cells, identify pieces, map coordinates in code, then call the engine. | Chess repair reproduced in targeted and full tests. Recipe remained correct; botanical classification regressed. Current checkpoint. |
+
+R4 uses **18.8% fewer chat tokens** than R0. The clearest reproduced repairs are
+recipe wording and chess perception-to-engine execution. The actor answer also
+became correct while a funding identifier regressed, giving **three gains minus
+one regression = two net gains** over R0. Those unchanged web paths vary between
+runs; this is not a controlled causal ablation or proof of generalization.
+
+Remaining failures: video species distinctions, ambiguous botanical membership,
+retrieving a paper's funding statement, and finding a complete historical roster.
+R4 passes 56 local tests; tests validate execution contracts, not factual accuracy.
+Token totals exclude audio transcription. Stable tags preserve R0/R3/R4, and
+experiment branches retain R1/R2. Raw traces and attachments remain local.
+See the [per-question ledger](FAILURE_ANALYSIS.md) and [metrics](EVALUATION.md)
+for diagnoses, rejected approaches, and proposed next fixes.
+
+## Full harness
 
 - Modules 0–3: reusable `BaselineAgent` tool loop and per-task registry.
 - Module 4: per-loop bounded memory compression preserving task and complete tool transactions.
@@ -156,11 +184,11 @@ The scripts never store or upload secret values. Identical search, page, and You
 
 Keep the 20 questions fixed and record each version in source control:
 
-1. `v0`: controlled baseline (`02a_run_stable_baseline.bat`)
-2. `v1`: memory / context compression
-3. `v2`: explicit planning before tool use
-4. `v3`: reflection / answer critic
-5. `v4`: safe parallel search/fetch calls
-6. `v5`: specialized researcher / file analyst orchestration
+1. Controlled baseline (`02a_run_stable_baseline.bat`)
+2. Memory / context compression
+3. Explicit planning before tool use
+4. Reflection / answer critic
+5. Safe parallel search/fetch calls
+6. Specialized researcher / file analyst orchestration
 
 Compare score, latency, input/output tokens, tool-call count, and failure categories from the saved traces. Do not optimize on hidden answers; improve the general mechanism and rerun the same harness.
