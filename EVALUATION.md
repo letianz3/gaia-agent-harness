@@ -1,5 +1,68 @@
 # Evidence acquisition and verification experiment
 
+## Evidence-contract and visual-reinspection experiment (2026-10-28 UTC)
+
+Decision: **not promoted**. The default runtime was restored to commit
+`ea7a1dd` after two full, separately submitted 20-question runs. This restores
+code, not a guarantee that a new stochastic run will reproduce 14/20.
+
+| Metric | Previous default | Contract v1 | Corrected v2 |
+|---|---:|---:|---:|
+| Official correct / 20 | 14 | 12 | 13 |
+| Chat tokens | 431,574 | 507,325 | 489,813 |
+| Change in tokens | — | +17.6% | +13.5% |
+| Model calls | 174 | 188 | 186 |
+| Tool calls | 74 | 89 | 83 |
+| Summed agent latency, seconds | 341.705 | 301.219 | 313.907 |
+
+Runs: `full_20261028T004401Z` (reference), `full_20261028T024518Z`
+(v1), `full_20261028T025130Z` (v2). Both new runs completed all 20 tasks
+without top-level runtime errors. Their combined chat usage was 997,138 tokens;
+audio transcription is excluded. All answers were generated afresh per run;
+no best-of-run answer mixing or answer-key injection was used.
+
+Changes tried:
+- Structured specialist reports with FOUND/PARTIAL/NOT_FOUND. Incomplete or
+  malformed prerequisite reports block dependent tasks instead of treating
+  transport success as task success.
+- Reject empty HTML/PDF evidence. Encourage bounded source/language fallback.
+- Retain original video frames; inspect at most three selected frames separately.
+- Describe chess scores from the mover's perspective and allow one independent
+  transcription retry for an illegal board or contradictory negative evaluation.
+- Preserve source wording and constrain final synthesis to the requested value.
+
+V1 revealed interface defects: nested timestamps skipped the detail pass, and
+an illegal FEN exited before the negative-score retry. V2 fixed those branches,
+removed an overly strong unavailable-answer instruction, and retained specialist
+report format when the turn budget expires. Regression tests covered these paths;
+48 tests passed on v2. Initial default pytest execution was blocked by Windows
+permissions on old temp/cache directories; an isolated `.runs/` temp directory
+and disabled pytest cache resolved that environment issue.
+
+Observed limitations:
+- Video detail execution worked in v2, but selected frames missed the decisive
+  evidence. Reinspection alone did not improve the final answer.
+- Chess reinspection executed, but coordinate/piece transcription remained wrong.
+- FOUND remains a model assertion. Checking report shape or nonempty evidence
+  does not establish semantic entailment, identity, dates, or list completeness.
+- Recipe wording improved only in v1, while category inclusion remained unstable.
+- V2 gained the actor task but lost the award identifier and spreadsheet total
+  relative to the reference: one gain and two regressions, net minus one.
+- More recovery calls increased token use without a net accuracy improvement.
+
+These results do not isolate causal effects: prompts, tool paths and model/web
+responses changed together, and the small development set has substantial variance.
+The next experiment should isolate one evidence transformation: source-span
+extraction, square-coordinate recognition, or item-level classification coverage.
+Do not add another generic critic as a substitute for those validators.
+
+Local recovery artifacts: both runs retain `source/`, traces, answers and official
+`submission.json`. V2 additionally retains `experimental_changes.patch` and
+`edited_files/` (including the experimental tests). The patch can be checked with
+`git apply --check .runs/full_20261028T025130Z/experimental_changes.patch` before
+reapplying it. Raw evidence, answers and experimental runtime files remain local;
+no public repository update was made for this experiment.
+
 ## Why the 82% increase had little benefit
 
 Trace accounting locates the increase in recovery, not the initial solve:
