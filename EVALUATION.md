@@ -1,5 +1,11 @@
 # Evidence acquisition and verification experiment
 
+Latest source-grounded-list experiment: **15/20**, 413,810 chat tokens (-4.1%
+against the previous 14/20 run). Runtime commit `392ad9c`; see
+[per-task analysis](FAILURE_ANALYSIS.md) for gains, regressions and limitations.
+The two target repairs reproduced; incidental changes on other tasks remain
+uncontrolled model/web variation.
+
 ## Evidence-contract and visual-reinspection experiment (2026-10-28 UTC)
 
 Decision: **not promoted**. The default runtime was restored to commit
