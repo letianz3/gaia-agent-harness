@@ -45,7 +45,7 @@ def test_input_transcript_survives_replan_and_empty_python_is_not_evidence():
 def test_fetch_rejects_challenge_and_private_redirect(monkeypatch):
     import gaia_agent.tools as tools
     monkeypatch.setattr(tools, '_validate_public_url', lambda u: u if u.startswith('https://example.org') else (_ for _ in ()).throw(ValueError('private')))
-    response = SimpleNamespace(is_redirect=False, content=b'Verify you are human', text='Verify you are human', raise_for_status=lambda:None)
+    response = SimpleNamespace(is_redirect=False, iter_content=lambda **kw:iter([b'Verify you are human']), close=lambda:None, raise_for_status=lambda:None)
     monkeypatch.setattr(tools.requests, 'get', lambda *a, **k: response)
     with pytest.raises(ValueError, match='challenge'):
         fetch_url('https://example.org')
@@ -108,3 +108,34 @@ def test_fenced_json_support_and_non_object_responses():
     evidence = '{"id":"E0","kind":"observation","excerpt":"observed green leaves"}'
     assert has_valid_support('```json\n{"support":[{"id":"E0","quote":"green leaves"}]}\n```', evidence)
     assert not has_valid_support('[]', evidence)
+
+
+def test_download_budget_uses_pdf_signature_and_stops_early(monkeypatch):
+    import gaia_agent.tools as t
+    monkeypatch.setattr(t,'HTML_DOWNLOAD_LIMIT',10)
+    monkeypatch.setattr(t,'PDF_DOWNLOAD_LIMIT',30)
+    pdf=SimpleNamespace(iter_content=lambda **kw:iter([b'%P',b'DF-',b'x'*20]))
+    assert len(t.bounded_response_body(pdf))==25
+    read=[]
+    def chunks(**kw):
+        for part in [b'<html>',b'x'*10,b'SHOULD NOT BE READ']:
+            read.append(part)
+            yield part
+    with pytest.raises(ValueError, match='download limit'):
+        t.bounded_response_body(SimpleNamespace(iter_content=chunks))
+    assert len(read)==2
+    with pytest.raises(ValueError, match='download limit'):
+        t.bounded_response_body(SimpleNamespace(iter_content=lambda **kw:iter([b'%PDF-'+b'x'*30])))
+
+
+def test_fetch_closes_response_on_size_failure(monkeypatch):
+    import gaia_agent.tools as t
+    monkeypatch.setattr(t,'HTML_DOWNLOAD_LIMIT',10)
+    monkeypatch.setattr(t,'_validate_public_url',lambda u:u)
+    closed=[]
+    response=SimpleNamespace(is_redirect=False,raise_for_status=lambda:None,
+        close=lambda:closed.append(True),iter_content=lambda **kw:iter([b'x'*11]))
+    monkeypatch.setattr(t.requests,'get',lambda *a,**kw:response)
+    with pytest.raises(ValueError, match='download limit'):
+        t.fetch_url('https://example.org')
+    assert closed==[True]

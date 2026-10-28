@@ -133,27 +133,54 @@ def search_web(query: str, max_results: int) -> str:
     return json.dumps(compact, ensure_ascii=False)
 
 
+HTML_DOWNLOAD_LIMIT = 3_000_000
+PDF_DOWNLOAD_LIMIT = 20_000_000
+
+
+def bounded_response_body(response) -> bytes:
+    """Choose the byte budget from actual magic bytes, never a claimed MIME type."""
+    body = bytearray()
+    for chunk in response.iter_content(chunk_size=65536):
+        if not chunk:
+            continue
+        body.extend(chunk)
+        # Wait for the five-byte PDF signature even if the stream splits it.
+        if len(body) < 5:
+            continue
+        limit = PDF_DOWNLOAD_LIMIT if body.startswith(b'%PDF-') else HTML_DOWNLOAD_LIMIT
+        if len(body) > limit:
+            raise ValueError(f'document exceeds the {limit // 1_000_000} MB download limit')
+    return bytes(body)
+
+
 def fetch_url(url: str) -> str:
     for _ in range(5):
         response = requests.get(
-            _validate_public_url(url), timeout=20, allow_redirects=False,
+            _validate_public_url(url), timeout=20, allow_redirects=False, stream=True,
             headers={"User-Agent": "Mozilla/5.0 GAIA educational agent"})
         if response.is_redirect:
             from urllib.parse import urljoin
             url = urljoin(url, response.headers['Location'])
+            response.close()
             continue
         break
     else:
         raise ValueError("too many redirects")
-    response.raise_for_status()
-    if len(response.content) > 3_000_000:
-        raise ValueError("page exceeds the 3 MB download limit")
-    if response.content.startswith(b'%PDF'):
+    try:
+        response.raise_for_status()
+        body = bounded_response_body(response)
+    finally:
+        response.close()
+    if body.startswith(b'%PDF-'):
         from io import BytesIO
         from pypdf import PdfReader
-        text = '\n'.join(page.extract_text() or '' for page in PdfReader(BytesIO(response.content)).pages)
-        return f"SOURCE: {url}\n{text[:30000]}"
-    soup = BeautifulSoup(response.text, "html.parser")
+        text = '\n'.join(page.extract_text() or '' for page in PdfReader(BytesIO(body)).pages)
+        if not text.strip():
+            raise ValueError('PDF has no extractable text; use OCR or another accessible source')
+        # Preserve both introduction and acknowledgements for long papers.
+        excerpt = text if len(text) <= 30000 else text[:20000] + '\n[Middle text omitted]\n' + text[-10000:]
+        return f"SOURCE: {url}\n{excerpt}"
+    soup = BeautifulSoup(body, "html.parser")
     for tag in soup(["script", "style", "noscript", "svg"]):
         tag.decompose()
     text = "\n".join(line.strip() for line in soup.get_text("\n").splitlines() if line.strip())
