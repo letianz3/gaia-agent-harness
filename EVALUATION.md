@@ -1,5 +1,12 @@
 # Evidence acquisition and verification experiment
 
+Latest evaluated checkpoint: **16/20 (80%)**, runtime commit `042b2e3`, run
+`full_20261028T032004Z`. 350,250 chat tokens versus 431,574 at 14/20 (-18.8%).
+56 unit tests passed. See [per-task ledger](FAILURE_ANALYSIS.md) for the complete
+iteration history and remaining four failures. The gains reproduce on the recipe
+and chess targets; classification and untouched web tasks remain variable.
+
+
 Latest source-grounded-list experiment: **15/20**, 413,810 chat tokens (-4.1%
 against the previous 14/20 run). Runtime commit `392ad9c`; see
 [per-task analysis](FAILURE_ANALYSIS.md) for gains, regressions and limitations.

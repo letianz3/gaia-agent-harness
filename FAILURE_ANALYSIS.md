@@ -89,3 +89,41 @@ Next bounded iteration: structured occupied-square transcription and determinist
 FEN construction, legal-position validation, then engine evaluation. Preserve the
 15/20 version before changing this one capability. No board positions or moves
 from the benchmark are embedded in the implementation.
+
+
+## Structured-chess v4 result
+
+First attempt (`bd38b74`): direct screen-grid JSON remained visually wrong;
+legality validation accepted an incorrect position. Targeted result failed.
+Second attempt (`042b2e3`): detect the regular two-color grid, crop/label all 64
+cells, classify pieces in two 32-cell sheets, read axes separately, then construct
+FEN in code and run the engine. This succeeded in both the targeted test and the
+full run. Non-regular images fall back to bounded whole-image transcription.
+Two-color segmentation is limited to regular digital boards, and legal inventory
+does not prove correct recognition. Castling/en-passant history is not inferable
+from a still image and is not assumed.
+
+Full run `full_20261028T032004Z`, runtime commit `042b2e3`, official **16/20 (80%)**:
+350,250 chat tokens, 255.186 summed agent seconds, 169 model calls, 64 tool calls.
+Against the original 14/20 run: tokens -18.8%, summed agent latency -25.3%.
+Against v3: one additional correct answer, but category classification regressed
+while spreadsheet and historical nationality recovered. These cross-task changes
+occurred without corresponding runtime changes and are not causal evidence for
+the chess mechanism. V4 and v3 full runs together used 764,060 chat tokens, plus
+separate targeted probes and uncounted audio transcription. No answer mixing.
+
+56 local tests passed. Code hashes match the preserved full-run source snapshot.
+
+### Remaining four failures after v4 (each trace inspected)
+
+| Task | Evidence of failure | Proposed next test |
+|---|---|---|
+| Bird species | Tool summary groups different birds into a generic category; critic only repeats that summary | Whole-video entity inventory and species-discriminating close-ups; avoid treating sampled absence as proof |
+| Botanical list | Research fetched generic definitions rather than verifying the ambiguous item's organ/type; coverage passed but the exclusion flag was wrong | Retrieve item-specific evidence for ambiguous membership; cite the factual property before applying exclusion rules |
+| NASA funding | Correct article/paper identified, but funding paragraph was not retrieved; solver still supplied an unsupported identifier | Follow full-text/PDF routes and inspect acknowledgements; link the named author to the exact funding span, not a nearby grant |
+| Historical roster | Current active roster was used for a July 2023 question | Acquire an explicitly dated complete roster, then compute numeric adjacency; no current-page substitution |
+
+Stable v4 retains the source-list mechanism because recipe extraction reproduced
+and the combined run improved. Botanical classification remains explicitly
+unresolved despite one earlier correct full-run answer. It must not be presented
+as a reliable fix. Other unchanged tasks can still regress on the next run.
