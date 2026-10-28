@@ -469,6 +469,8 @@ class BaselineAgent:
         phase: str,
         subtask_number: int | None = None,
         failure_tracker: FailureTracker | None = None,
+        final_instruction: str | None = None,
+        final_json: bool = False,
     ) -> str:
         if self.settings.parallel_tools_enabled and messages:
             messages = list(messages)
@@ -581,16 +583,18 @@ class BaselineAgent:
         messages.append(
             {
                 "role": "user",
-                "content": (
+                "content": final_instruction or (
                     "Tool budget is exhausted. Return only your best concise subtask result now."
                     if phase == "subtask"
                     else "Tool budget is exhausted. Return only your best exact-match answer now."
                 ),
             }
         )
-        response = self._plain_completion(messages)
+        response = self._plain_completion(messages, **({"response_format": {"type":"json_object"}} if final_json else {}))
         trace.add_usage(getattr(response, "usage", None))
-        return response.choices[0].message.content or ""
+        result = response.choices[0].message.content or ""
+        trace.add("loop_budget_result", phase=phase, content=result)
+        return result
 
     def _generate_plan(
         self,

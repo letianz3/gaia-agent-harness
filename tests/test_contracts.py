@@ -74,7 +74,7 @@ def test_unresolved_prerequisite_blocks_remaining_steps(monkeypatch):
         dict(task='Identify the creator of Example Film',input_type=None,output_type='person'),
         dict(task='role',input_type='person',output_type='character')]})
     calls=[]
-    def loop(*args):
+    def loop(*args,**kwargs):
         calls.append(args[3]);return '{"status":"NOT_FOUND"}'
     agent=SimpleNamespace(_run_tool_loop=loop)
     from gaia_agent.registry import ToolRegistry
@@ -150,7 +150,7 @@ def test_next_step_can_reuse_previously_retrieved_evidence(monkeypatch):
     replies=iter([
         dict(status='FOUND',entity=dict(type='person',name='Dana Actor'),support=[dict(source_url='https://example.org/cast',quote=body)]),
         entity_report()])
-    def loop(*args):
+    def loop(*args,**kwargs):
         if not any(e.get('name')=='fetch_url' for e in trace.events):trace.events.append(observation(body))
         return json.dumps(next(replies))
     agent=SimpleNamespace(_run_tool_loop=loop)
