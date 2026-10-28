@@ -24,6 +24,9 @@ def main():
     (run_dir / 'source').mkdir(parents=True)
     for path in (ROOT / 'gaia_agent').glob('*.py'):
         shutil.copy2(path, run_dir / 'source' / path.name)
+    manifest = {'git_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+                'tracked_changes': subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=no'], text=True).strip()}
+    (run_dir / 'version.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     scorer = ScoringClient(settings)
     questions = scorer.questions()
     if len(questions) != 20:

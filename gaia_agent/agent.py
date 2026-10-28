@@ -988,7 +988,11 @@ Respond ONLY as JSON:
         attempt_start = len(trace.events)
         trace.add('input_evidence', name='original_task_and_transcripts',
                   result=self._message_to_text({'role': 'user', 'content': task_context}))
-        if self.settings.planning_enabled or self.settings.multi_agent_enabled:
+        from .source_lists import solve_source_list
+        source_answer = solve_source_list(self, question, task_context, trace)
+        if source_answer is not None:
+            answer = source_answer
+        elif self.settings.planning_enabled or self.settings.multi_agent_enabled:
             answer = self._answer_with_planning(
                 question, task_context, registry, trace, failure_tracker
             )
@@ -1009,7 +1013,8 @@ Respond ONLY as JSON:
             )
             answer = normalize_answer(raw_answer, question)
 
-        if self.settings.recovery_enabled:
+        # A generic prose critic must not rewrite a validated source-only rendering.
+        if self.settings.recovery_enabled and source_answer is None:
             evidence = self._evidence_packet(trace, attempt_start)
             answer = self._recover_answer(
                 question,
