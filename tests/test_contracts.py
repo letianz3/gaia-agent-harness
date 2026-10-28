@@ -77,7 +77,8 @@ def test_unresolved_prerequisite_blocks_remaining_steps(monkeypatch):
     def loop(*args):
         calls.append(args[3]);return '{"status":"NOT_FOUND"}'
     agent=SimpleNamespace(_run_tool_loop=loop)
-    registry=SimpleNamespace(subset=lambda names:None)
+    from gaia_agent.registry import ToolRegistry
+    registry=ToolRegistry()
     trace=Trace('synthetic','first name')
     assert solve_entity(agent,'Give only the first name',registry,trace)=='Unable to verify the requested entity'
     assert calls==[4,2]
@@ -93,3 +94,26 @@ def test_wide_table_exact_totals_and_total_row_rejection(tmp_path):
     sheet.append(['Total',0.3,3]);book.save(path)
     with pytest.raises(ValueError,match='double counting'):
         read_wide_table(path)
+
+
+def test_biography_heading_can_join_its_original_table_row():
+    r=entity_report();r['support'][0]['quote']='Example series: Robin Example (supporting role)'
+    r['support'][0]['subject_quote']='Dana Actor - Biography'
+    body='Dana Actor - Biography\nFilmography\nExample series: Robin Example (supporting role)'
+    assert validate_entity(r,'character',dict(name='Dana Actor'),[observation(body)])['name']=='Robin Example'
+    r['support'][0]['subject_quote']='Different person biography'
+    with pytest.raises(ValueError):
+        validate_entity(r,'character',dict(name='Dana Actor'),[observation(body)])
+
+
+def test_xlsx_missing_dimension_metadata_is_supported(tmp_path):
+    from openpyxl import Workbook
+    import zipfile,re
+    path=tmp_path/'normal.xlsx';book=Workbook();book.active.append(['Site','Revenue']);book.active.append(['A',12]);book.save(path)
+    target=tmp_path/'no_dimension.xlsx'
+    with zipfile.ZipFile(path) as src,zipfile.ZipFile(target,'w') as out:
+        for name in src.namelist():
+            data=src.read(name)
+            if name=='xl/worksheets/sheet1.xml':data=re.sub(rb'<dimension[^>]*/>',b'',data)
+            out.writestr(name,data)
+    assert read_wide_table(target)=={'Revenue':Decimal(12)}

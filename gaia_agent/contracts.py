@@ -36,6 +36,11 @@ def validate_support(support, events, required_names=()):
         if not any(normalize_text(quote) in normalize_text(e['result'].split('\n',1)[1]) for e in matches):
             raise ValueError('quotation absent from retrieved page body')
         quotes.append(normalize_text(quote))
+        subject_quote=claim.get('subject_quote')
+        if subject_quote:
+            if not isinstance(subject_quote,str) or not any(normalize_text(subject_quote) in normalize_text(e['result'].split('\n',1)[1][:1000]) for e in matches):
+                raise ValueError('subject heading not present at start of the same page')
+            quotes.append(normalize_text(subject_quote))
     for name in required_names:
         if not any(normalize_text(name) in q for q in quotes):
             raise ValueError('evidence does not mention required entity: '+name)
@@ -57,7 +62,10 @@ def validate_entity(report, kind, predecessor, events):
             raise ValueError('relation does not join to predecessor')
         required.append(predecessor['name'])
     quotes=validate_support(report.get('support'),events,required)
-    if predecessor and not any(all(normalize_text(n) in q for n in required) for q in quotes):
+    same_document_join=predecessor and any(
+        normalize_text(predecessor['name']) in normalize_text(s.get('subject_quote',''))
+        and normalize_text(name) in normalize_text(s['quote']) for s in report['support'])
+    if predecessor and not same_document_join and not any(all(normalize_text(n) in q for n in required) for q in quotes):
         raise ValueError('one relationship quote must mention both endpoints')
     return entity
 

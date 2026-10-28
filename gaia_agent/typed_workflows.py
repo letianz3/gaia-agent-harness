@@ -13,9 +13,13 @@ def read_wide_table(path):
         if len(book.worksheets)!=1:
             raise ValueError('multiple sheets need explicit selection')
         sheet=book.worksheets[0]
-        if sheet.max_row>10000 or sheet.max_column>100:
+        if (sheet.max_row or 0)>10001 or (sheet.max_column or 0)>100:
             raise ValueError('table exceeds bounded simple-table workflow')
-        rows=list(sheet.iter_rows(values_only=True))
+        from itertools import islice
+        rows=list(islice(sheet.iter_rows(values_only=True),10002))
+        if len(rows)>10001 or any(len(row)>100 for row in rows):
+            raise ValueError("table exceeds bounded simple-table workflow")
+        rows=[row for row in rows if any(value is not None for value in row)]
         if len(rows)<2:
             raise ValueError('no data')
         headers=rows[0]
@@ -113,6 +117,28 @@ def solve_entity(agent,question,registry,trace):
     except ValueError as exc:
         trace.add('entity_contract_deferred',reason=str(exc));return None
     trace.add('entity_chain_plan',steps=steps)
+    web=registry.subset({'search_web','fetch_url'})
+    def find_evidence(query):
+        matches=[]
+        if len(query.strip())<3:
+            raise ValueError('use at least three characters from the name, work or relation')
+        seen=set()
+        for event in reversed(trace.events):
+            if event.get('type')!='tool_call' or event.get('name')!='fetch_url' or not event.get('succeeded'):
+                continue
+            raw=event.get('result','')
+            if not raw.startswith('SOURCE: ') or '\n' not in raw:continue
+            source,body=raw.split('\n',1);source=source[8:]
+            if source in seen:continue
+            seen.add(source)
+            for match in re.finditer(re.escape(query),body,re.I):
+                matches.append({'source_url':source,'quote':body[max(0,match.start()-180):match.end()+450],
+                                'heading':body[:400]})
+                if len(matches)>=5:return json.dumps(matches,ensure_ascii=False)
+        return json.dumps(matches,ensure_ascii=False)
+    web.register('find_evidence','Read exact excerpts from already fetched pages; query a name or work before quoting.',
+                 {'type':'object','properties':{'query':{'type':'string'}},'required':['query'],'additionalProperties':False},
+                 find_evidence,parallel_safe=True)
     predecessor=None
     for index,step in enumerate(steps):
         start=len(trace.events)
@@ -124,7 +150,10 @@ def solve_entity(agent,question,registry,trace):
             '"name_parts_status":"explicit|unambiguous|ambiguous"},'
             '"support":[{"source_url":"retrieved URL","quote":"literal page-body quotation"}]}. '
             'Open actual source pages; snippets and empty pages are not evidence. '
-            'For dependent lookups, a relationship quotation must contain both entity names. '
+            'Use find_evidence to recover exact original-language excerpts; NEVER translate or invent connective words. '
+            'For dependent lookups, quote both entity names together; on a biography page, you may instead '
+            'add subject_quote to the support entry with the exact heading establishing the page subject, '
+            'and quote the actual filmography/relationship row separately. '
             'Name parts must follow evidence/conventions; do not return all given names when only '
             'the first is requested; preserve genuine compound names and mark ambiguity. '
             'Never substitute the predecessor for the missing target. If a source fails, try '
@@ -134,7 +163,7 @@ def solve_entity(agent,question,registry,trace):
         messages=[{'role':'system','content':prompt}]
         report=None
         for attempt,turns in enumerate((4,2)):
-            raw=agent._run_tool_loop(messages,registry.subset({'search_web','fetch_url'}),trace,turns,'subtask')
+            raw=agent._run_tool_loop(messages,web,trace,turns,'subtask')
             report=read_json_object(raw)
             try:
                 entity=validate_entity(report,step['output_type'],predecessor,trace.events[start:])
