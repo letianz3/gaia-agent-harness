@@ -139,3 +139,18 @@ def test_fetch_closes_response_on_size_failure(monkeypatch):
     with pytest.raises(ValueError, match='download limit'):
         t.fetch_url('https://example.org')
     assert closed==[True]
+
+
+def test_large_pdf_keeps_end_of_document_and_source(monkeypatch):
+    import gaia_agent.tools as t
+    import pypdf
+    monkeypatch.setattr(t,'_validate_public_url',lambda u:u)
+    response=SimpleNamespace(is_redirect=False,raise_for_status=lambda:None,close=lambda:None,
+        iter_content=lambda **kw:iter([b'%PDF-'+b'x'*3_100_000]))
+    monkeypatch.setattr(t.requests,'get',lambda *a,**kw:response)
+    pages=[SimpleNamespace(extract_text=lambda:'Introduction '+('body '*9000)+'Final acknowledgement: Grant EXAMPLE-42')]
+    monkeypatch.setattr(pypdf,'PdfReader',lambda stream:SimpleNamespace(pages=pages))
+    result=t.fetch_url('https://example.org/paper.pdf')
+    assert result.startswith('SOURCE: https://example.org/paper.pdf')
+    assert 'Introduction' in result and 'Final acknowledgement: Grant EXAMPLE-42' in result
+    assert '[Middle text omitted]' in result
