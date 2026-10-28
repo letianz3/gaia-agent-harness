@@ -53,6 +53,7 @@ class Settings:
     request_timeout: int
     runs_dir: Path
     temperature: float = 0.0
+    typed_entities_enabled: bool = False
     memory_enabled: bool = True
     memory_max_messages: int = 16
     memory_keep_recent: int = 6
@@ -91,6 +92,7 @@ class Settings:
             request_timeout=_positive_int("AGENT_REQUEST_TIMEOUT", 30),
             runs_dir=Path(os.getenv("AGENT_RUNS_DIR", ".runs")).resolve(),
             temperature=_nonnegative_float("AGENT_TEMPERATURE", 0.0),
+            typed_entities_enabled=_boolean("AGENT_TYPED_ENTITIES_ENABLED", False),
             memory_enabled=_boolean("AGENT_MEMORY_ENABLED", True),
             memory_max_messages=memory_max_messages,
             memory_keep_recent=memory_keep_recent,

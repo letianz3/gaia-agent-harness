@@ -213,4 +213,6 @@ def solve_entity(agent,question,registry,trace):
 def solve_typed_task(agent,question,files,registry,trace):
     table=solve_table(agent,question,files,trace)
     if table is not None:return table
+    if not agent.settings.typed_entities_enabled:
+        return None
     return solve_entity(agent,question,registry,trace)

@@ -19,6 +19,10 @@ budgets; the workflow cannot retry indefinitely.
 
 ## What this does not prove
 
+The wide-table route is enabled by default. Strict entity chains are experimental
+and require `AGENT_TYPED_ENTITIES_ENABLED=true`; they reduced coverage in R7's
+first full run. Turning them off preserves the existing general lookup workflow.
+
 - A real quotation mentioning two entities does not prove the claimed relation.
 - Category membership, plan completeness and name segmentation still depend on
   the model. A fabricated but syntactically valid interpretation can pass.

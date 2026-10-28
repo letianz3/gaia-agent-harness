@@ -44,6 +44,7 @@ def main() -> None:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "questions": len(answers),
         "model": settings.model,
+        "typed_entities_enabled": settings.typed_entities_enabled,
         "temperature": settings.temperature,
         "memory_enabled": settings.memory_enabled,
         "memory_max_messages": settings.memory_max_messages,
