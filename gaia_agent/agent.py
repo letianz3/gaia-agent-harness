@@ -989,7 +989,7 @@ Respond ONLY as JSON:
         trace.add('input_evidence', name='original_task_and_transcripts',
                   result=self._message_to_text({'role': 'user', 'content': task_context}))
         from .source_lists import solve_source_list
-        source_answer = solve_source_list(self, question, task_context, trace)
+        source_answer = solve_source_list(self, question, task_context, trace, registry)
         if source_answer is not None:
             answer = source_answer
         elif self.settings.planning_enabled or self.settings.multi_agent_enabled:
