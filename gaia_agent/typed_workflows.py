@@ -81,6 +81,7 @@ def solve_table(agent,question,files,trace):
         if re.search(r'two decimal|2 decimal',question,re.I):
             return format(total,'.2f')
         return format(total,'f')
+    trace.add('table_contract_blocked',reason='selection unresolved')
     return 'Unable to validate the aggregation'
 
 
@@ -94,6 +95,8 @@ def validate_chain(plan):
             raise ValueError('invalid task')
         if step.get('input_type')!=previous or step.get('output_type') not in ('person','character','organization','place','work'):
             raise ValueError('broken type chain')
+        if step['task'].strip().casefold() in ('lookup including all original constraints','lookup','identify'):
+            raise ValueError('plan contains a placeholder instead of a research task')
         previous=step['output_type']
     if previous not in ('person','character'):
         raise ValueError('first-name output requires a person or character')
@@ -104,14 +107,15 @@ def solve_entity(agent,question,registry,trace):
     if not re.search(r'\bfirst name\b',question,re.I):
         return None
     plan=ask_json(agent,
-        'Plan a typed entity lookup chain for this question. Return JSON {"steps":['
-        '{"task":"lookup including all original constraints","input_type":null,'
-        '"output_type":"person|character|organization|place|work"}]}. '
-        'One to three steps, first input_type null; later input_type equals preceding output_type. '
-        'Each step must identify ONE entity. Bind later steps to the predecessor entity. '
-        'Keep historical/date/filter constraints explicit. Do not add a name-formatting step. '
-        'The final entity must be the requested person or character, not an intermediate actor. '
-        'Do not supply any answers.\nQuestion: '+question,trace)
+        'Create a concrete sequential plan for this question, with NO answers. Return a JSON '
+        'object containing steps (one to three objects). Each object has task, input_type, output_type. '
+        'task must be a specific research question naming the relevant work, relation or constraint '
+        'from the user question; never copy a placeholder instruction. '
+        'input_type is null for the first step and equals the previous output_type afterward. '
+        'output_type is one of person, character, organization, place, work. '
+        'Each step identifies ONE entity; later steps use the preceding entity as a fixed subject. '
+        'The final output entity must answer the user question. Do not add a formatting step. '
+        'Preserve date and historical constraints in the relevant research question.\nQuestion: '+question,trace)
     try:
         steps=validate_chain(plan)
     except ValueError as exc:
@@ -122,19 +126,21 @@ def solve_entity(agent,question,registry,trace):
         matches=[]
         if len(query.strip())<3:
             raise ValueError('use at least three characters from the name, work or relation')
-        seen=set()
+        seen=set(); pages_found=False
         for event in reversed(trace.events):
             if event.get('type')!='tool_call' or event.get('name')!='fetch_url' or not event.get('succeeded'):
                 continue
             raw=event.get('result','')
             if not raw.startswith('SOURCE: ') or '\n' not in raw:continue
-            source,body=raw.split('\n',1);source=source[8:]
+            source,body=raw.split('\n',1);source=source[8:];pages_found=True
             if source in seen:continue
             seen.add(source)
             for match in re.finditer(re.escape(query),body,re.I):
                 matches.append({'source_url':source,'quote':body[max(0,match.start()-180):match.end()+450],
                                 'heading':body[:400]})
                 if len(matches)>=5:return json.dumps(matches,ensure_ascii=False)
+        if not pages_found:
+            raise ValueError('No fetched pages. Call fetch_url on a relevant search result before find_evidence; this tool does not search the web.')
         return json.dumps(matches,ensure_ascii=False)
     web.register('find_evidence','Read exact excerpts from already fetched pages; query a name or work before quoting.',
                  {'type':'object','properties':{'query':{'type':'string'}},'required':['query'],'additionalProperties':False},
@@ -143,14 +149,14 @@ def solve_entity(agent,question,registry,trace):
     for index,step in enumerate(steps):
         start=len(trace.events)
         prompt=(
-            'Retrieve this one entity using web tools. Return ONLY JSON {"status":"FOUND|NOT_FOUND",'
+            'Solve ONLY the current step using web tools; do not execute future steps from the original question. Retrieve this one entity. Return ONLY JSON {"status":"FOUND|NOT_FOUND",'
             '"subject_name":"exact predecessor name or empty",'
             '"entity":{"type":"requested type","name":"full name",'
             '"first_name":"first given name when needed", "additional_given_names":[], '
             '"name_parts_status":"explicit|unambiguous|ambiguous"},'
             '"support":[{"source_url":"retrieved URL","quote":"literal page-body quotation"}]}. '
             'Open actual source pages; snippets and empty pages are not evidence. '
-            'Use find_evidence to recover exact original-language excerpts; NEVER translate or invent connective words. '
+            'After fetching a page, use find_evidence with ONE distinctive name or work-title fragment to recover literal excerpts. It does not search the web. NEVER translate or invent connective words. '
             'For dependent lookups, quote both entity names together; on a biography page, you may instead '
             'add subject_quote to the support entry with the exact heading establishing the page subject, '
             'and quote the actual filmography/relationship row separately. '

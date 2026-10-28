@@ -1070,7 +1070,8 @@ Respond ONLY as JSON:
                 evidence,
             )
 
-        trace.add('run_finished', status='COMPLETED', **self.gateway.stats())
+        incomplete = any(e['type'] in ('entity_chain_blocked', 'table_contract_blocked') for e in trace.events)
+        trace.add('run_finished', status='INCOMPLETE' if incomplete else 'COMPLETED', **self.gateway.stats())
         trace.save(self.settings.runs_dir / task_id / "trace.json", answer)
         return answer
 

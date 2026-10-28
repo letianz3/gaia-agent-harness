@@ -64,14 +64,14 @@ def test_compound_names_are_not_split_and_ambiguity_is_not_guessed():
 
 def test_type_chain_rejects_mismatched_dependencies():
     with pytest.raises(ValueError,match='type chain'):
-        validate_chain({'steps':[dict(task='identify',input_type=None,output_type='person'),
+        validate_chain({'steps':[dict(task='Identify the creator of Example Film',input_type=None,output_type='person'),
                                  dict(task='role',input_type='place',output_type='character')]})
 
 
 def test_unresolved_prerequisite_blocks_remaining_steps(monkeypatch):
     import gaia_agent.typed_workflows as w
     monkeypatch.setattr(w,'ask_json',lambda *a:{'steps':[
-        dict(task='identify',input_type=None,output_type='person'),
+        dict(task='Identify the creator of Example Film',input_type=None,output_type='person'),
         dict(task='role',input_type='person',output_type='character')]})
     calls=[]
     def loop(*args):
@@ -117,3 +117,8 @@ def test_xlsx_missing_dimension_metadata_is_supported(tmp_path):
             if name=='xl/worksheets/sheet1.xml':data=re.sub(rb'<dimension[^>]*/>',b'',data)
             out.writestr(name,data)
     assert read_wide_table(target)=={'Revenue':Decimal(12)}
+
+
+def test_placeholder_plan_is_not_a_task():
+    with pytest.raises(ValueError,match='placeholder'):
+        validate_chain({'steps':[dict(task='lookup including all original constraints',input_type=None,output_type='person')]})
