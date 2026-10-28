@@ -20,6 +20,29 @@ def normalize_text(text):
     return ' '.join(str(text).split()).casefold()
 
 
+def evidence_windows(body, query, limit=5):
+    """Keep later occurrences too: a title/TOC hit must not hide body evidence."""
+    terms = list(dict.fromkeys(re.findall(r'\w{3,}', query.casefold())))
+    exact = list(re.finditer(re.escape(query), body, re.I))
+    hits = exact or [m for term in terms for m in re.finditer(re.escape(term), body, re.I)]
+    candidates = []
+    for hit in hits[:200]:
+        start, end = max(0, hit.start()-180), min(len(body), hit.end()+450)
+        quote = body[start:end]
+        score = sum(term in quote.casefold() for term in terms)
+        # Navigation is especially common in the first title occurrence.
+        score -= sum(s in quote.casefold() for s in ('jump to content', 'main menu', 'toggle the table'))
+        candidates.append((score, start, end, quote))
+    selected = []
+    for _, start, end, quote in sorted(candidates, key=lambda x: (-x[0], x[1])):
+        if any(abs(start-old_start)<200 for old_start, _ in selected):
+            continue
+        selected.append((start, quote))
+        if len(selected)>=limit:
+            break
+    return [quote for _, quote in selected]
+
+
 def validate_support(support, events, required_names=()):
     """Require quotations from actual retrieved bodies and a join-key mention."""
     if not isinstance(support,list) or not support:

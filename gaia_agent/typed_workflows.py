@@ -3,7 +3,7 @@ import json
 import re
 import hashlib
 from decimal import Decimal
-from .contracts import ask_json, aggregate_contract, validate_entity, project_first_name, resolve_support_refs
+from .contracts import ask_json, aggregate_contract, validate_entity, project_first_name, resolve_support_refs, evidence_windows
 from .evidence import read_json_object
 
 
@@ -139,13 +139,8 @@ def solve_entity(agent,question,registry,trace):
             source,body=raw.split('\n',1);source=source[8:];pages_found=True
             if source in seen:continue
             seen.add(source)
-            patterns=[query] if re.search(re.escape(query),body,re.I) else list(reversed(re.findall(r'\w{3,}',query)))
-            hits=[]
-            for pattern in patterns:
-                match=re.search(re.escape(pattern),body,re.I)
-                if match is not None:hits.append(match)
-            for match in hits:
-                record={'source_url':source,'quote':body[max(0,match.start()-180):match.end()+450], 'heading':body[:400]}
+            for quote in evidence_windows(body,query):
+                record={'source_url':source,'quote':quote, 'heading':body[:400]}
                 ref='S'+hashlib.sha256(json.dumps(record,ensure_ascii=False).encode()).hexdigest()[:12]
                 if ref not in spans:trace.add('evidence_span',span_id=ref,**record)
                 spans[ref]=record
@@ -194,8 +189,18 @@ def solve_entity(agent,question,registry,trace):
                 break
             except (ValueError,TypeError) as exc:
                 trace.add('entity_contract_rejected',step=index,attempt=attempt,reason=str(exc),report=report)
+                # Reread by the claimed entity automatically; do not rely on the model
+                # to fix an irrelevant title/TOC query after a provenance rejection.
+                candidate=report.get('entity',{}) if isinstance(report,dict) else {}
+                name=candidate.get('name') if isinstance(candidate,dict) else None
+                recovery=''
+                if isinstance(name,str) and len(name.strip())>=3:
+                    try:
+                        recovery='\nProgram-retrieved candidate evidence (still requires relation validation): '+find_evidence(name)
+                    except ValueError:
+                        pass
                 messages.extend([{'role':'assistant','content':raw},
-                                 {'role':'user','content':'Resolve this specific missing contract/evidence requirement: '+str(exc)}])
+                                 {'role':'user','content':'Resolve this specific missing contract/evidence requirement: '+str(exc)+recovery}])
         else:
             trace.add('entity_chain_blocked',step=index,reason='prerequisite unresolved; no dependent execution')
             return 'Unable to verify the requested entity'

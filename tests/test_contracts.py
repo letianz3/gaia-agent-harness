@@ -6,6 +6,21 @@ from gaia_agent.typed_workflows import read_wide_table,validate_chain,solve_enti
 from gaia_agent.tracing import Trace
 
 
+def test_evidence_windows_do_not_let_navigation_hide_later_relationship():
+    from gaia_agent.contracts import evidence_windows
+    body='Example Name - Encyclopedia\nJump to content\nMain menu\n'+'navigation '*100
+    body+='Example Name played Character Delta in Show Beta.'
+    windows=evidence_windows(body,'Example Name')
+    assert 'played Character Delta' in windows[0]
+    assert all(window in body for window in windows)
+
+
+def test_evidence_windows_are_bounded_and_empty_when_unmatched():
+    from gaia_agent.contracts import evidence_windows
+    assert evidence_windows('nothing relevant','Absent Entity')==[]
+    assert len(evidence_windows(('A Person relation. '+'x'*800)*30,'A Person'))<=5
+
+
 def table_contract():
     return dict(operation='sum',rules=[dict(id='r',question_span='excluding returns',effect='exclude')],
                 columns=[dict(column='Sales',matches={'r':False},basis='ordinary sales'),
