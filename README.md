@@ -32,8 +32,10 @@ failed experiments are retained in Git, without mixing answers across runs.
 | R2 · `25ac623` | 12/20 | 507,325 | Add completion contracts and visual reinspection to prevent missing evidence from becoming a factual premise. | Regression: overly strict unavailable answers; nested timestamps and illegal FEN bypassed reinspection. Not promoted. |
 | R3 · `64f0b01` | 13/20 | 489,813 | Fix reinspection branches and relax the unavailable-answer policy. | Execution improved, but visual recognition and semantic classification remained wrong. Still below R1; restored R1. |
 | R4 · `392ad9c` | 15/20 | 413,810 | Preserve recipe phrases as exact source spans; account for every list item, research technical definitions, and apply exclusions in code. | Recipe and botanical-list targets improved; unrelated spreadsheet and historical-nationality answers regressed. Classification was not yet stable. |
-| R5 · `042b2e3` | **16/20** | **350,250** | Direct grid transcription still failed, so crop and label chessboard cells, identify pieces, map coordinates in code, then call the engine. | Chess repair reproduced in targeted and full tests. Recipe remained correct; botanical classification regressed. Current checkpoint. |
+| R5 · `042b2e3` | **16/20** | **350,250** | Direct grid transcription still failed, so crop and label chessboard cells, identify pieces, map coordinates in code, then call the engine. | Chess repair reproduced in targeted and full tests. Recipe remained correct; botanical classification regressed. Previous best checkpoint. |
 | R6 · `c5c7ebb` | 15/20 | 348,129 | A source PDF exceeded the shared 3 MB cap. Add bounded streaming with a separate 50 MB PDF budget and retain long-document tails. | Funding repair reproduced, but actor lookup, spreadsheet membership and name formatting regressed. Not promoted; retain R5 pending broader validation. |
+| R7a · `81bd708` | 14/20 | 370,173 | Move sums, entity joins and evidence references into code-owned contracts. | Spreadsheet repaired; strict entity evidence reduced coverage. Preserved as an experiment. |
+| R7b · `87e0b03` | **17/20** | 370,653 | Keep deterministic table selection/arithmetic and bounded PDFs; make strict entity chains opt-in. | All three regression targets correct; the gain over R5 is the funding answer. Entity gains use the existing lookup route, not proof of the experimental chain. |
 
 R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
 recipe wording and chess perception-to-engine execution. The actor answer also
@@ -41,9 +43,11 @@ became correct while a funding identifier regressed, giving **three gains minus
 one regression = two net gains** over R1. Those unchanged web paths vary between
 runs; this is not a controlled causal ablation or proof of generalization.
 
-Remaining failures: video species distinctions, ambiguous botanical membership,
-retrieving a paper's funding statement, and finding a complete historical roster.
-R5 passes 56 local tests; tests validate execution contracts, not factual accuracy.
+R7b remaining failures: video species distinctions, botanical membership, and
+finding a complete historical roster. R7b uses 5.8% more chat tokens than R5.
+The table repair reproduces in targeted/full runs; one 17/20 run is not a stability guarantee.
+See [code-owned contracts](CONTRACTS.md) for the default and experimental routes.
+R7b passes 77 local tests; tests validate execution contracts, not factual accuracy.
 Token totals exclude audio transcription. R0 is preserved as a local source
 snapshot. Stable tags preserve R1/R4/R5, and
 experiment branches retain R2/R3. Raw traces and attachments remain local.

@@ -166,3 +166,52 @@ do not replace the evaluated R5 default on one lower-scoring run. Record the
 confirmed PDF capability repair separately from end-to-end benchmark variance.
 All source snapshots, targeted traces and submissions remain local. No scores
 are assembled by mixing answer sets.
+
+## R7: code-owned contracts and selective rollout
+
+Runtime `81bd708`, run `full_20261028T042358Z`: **14/20**, 370,173 chat
+tokens, 70 tool calls, 274.649 summed agent seconds. All 20 tasks executed;
+two strict entity workflows explicitly ended incomplete. This is not an
+accuracy improvement over R5 (16/20) or R6 (15/20).
+
+- Spreadsheet: complete per-column predicates plus Decimal arithmetic restored
+  the correct total. It also reproduced across targeted runs. Semantic category
+  membership remains model-dependent, but omission and arithmetic are controlled.
+- Actor: the typed join prevented substituting the actor for the requested
+  character, but irrelevant evidence windows caused rejection. Retrieval chose
+  title/navigation hits instead of later body occurrences.
+- Historical first name: the proposed plan added an unnecessary formatting step
+  typed as a character; source excerpts also omitted the claimed person. The
+  contract blocked execution rather than returning the extra given name.
+- Chemistry surname: unchanged general lookup fetched a different textbook's
+  exercises, then hit a 404 and exhausted search fallbacks. This loss cannot be
+  attributed to the new table/entity routes.
+- Bird species and historical roster remained wrong. Botanical membership and
+  the funding identifier were correct; the botanical path was unchanged.
+
+Follow-up `ce4de45` ranks multiple literal evidence windows and automatically
+rereads pages by the claimed entity on rejection. Synthetic regression coverage
+rose to 77 passing tests. A targeted run still left actor and historical-name
+queries unresolved while the spreadsheet remained correct. These failures are
+retained, not relabeled as successes.
+
+`87e0b03` therefore keeps strict entity chains opt-in through
+`AGENT_TYPED_ENTITIES_ENABLED=true`. Default execution retains the established
+entity lookup route and enables the deterministic wide-table route. Both retain
+the bounded PDF repair. See CONTRACTS.md for supported categories, invariants
+and remaining semantic limitations. No task IDs or benchmark answers enter
+runtime routing. Full-run results are always submitted as a single answer set.
+
+Final selective run `full_20261028T043133Z`, runtime `87e0b03`: **17/20**,
+370,653 chat tokens, 73 tool calls, 281.867 summed agent seconds; 165 model
+requests and no cache hits. All three regression targets were correct. Against
+R5, the funding answer is the only new correct answer; botanical output changed
+from including corn to including green beans, and still fails. Video species,
+botanical classification and historical roster remain the three misses.
+
+The entity improvements over the first R7 run come from disabling a regressive
+experimental route, not from demonstrating that the typed chain is solved.
+Table arithmetic/coverage is now code-owned and its repair reproduced, but
+semantic category assignments are still an uncertainty. Keep the experiment
+branch and previous stable checkpoint; do not interpret 17/20 as a deterministic
+performance guarantee. No paid repeat runs are needed merely to repeat this result.

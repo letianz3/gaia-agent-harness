@@ -1,3 +1,26 @@
+# R7 selective code-owned contracts
+
+Final runtime `87e0b03`, run `full_20261028T043133Z`: **17/20 (85%)**.
+77 local tests passed. Model remains gpt-4.1-mini; no answer-set mixing.
+
+| Metric | R5 | R7a strict entities | R7b selective default |
+|---|---:|---:|---:|
+| Official correct / 20 | 16 | 14 | 17 |
+| Chat tokens | 350,250 | 370,173 | 370,653 |
+| Tool calls | 64 | 70 | 73 |
+| Summed agent latency (seconds) | 255.186 | 274.649 | 281.867 |
+
+The three regression targets (actor, spreadsheet, first name) are correct in
+R7b. Only the spreadsheet uses the new default typed contract; entity chains
+remain opt-in after reduced coverage. Compared with R5, funding is the sole
+new correct answer; the botanical answer changed but remains incorrect.
+R7b costs 5.8% more chat tokens than R5. The PDF and spreadsheet repairs have
+repeated targeted/full evidence; a single full score does not establish overall
+stability. Audio tokens are excluded; price fields are unset, so no dollar-cost
+claim is made. Prior experiments are retained below as historical records.
+
+---
+
 # Evidence acquisition and verification experiment
 
 R6 PDF-access experiment: **15/20**, 348,129 chat tokens, runtime `c5c7ebb`.
