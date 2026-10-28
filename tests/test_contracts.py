@@ -147,6 +147,7 @@ def test_next_step_can_reuse_previously_retrieved_evidence(monkeypatch):
         dict(task='Find role in Example Series',input_type='person',output_type='character')]})
     trace=Trace('synthetic','first name')
     body='Dana Actor plays Robin Example in the series.'
+    monkeypatch.setattr(w,'resolve_support_refs',lambda report,spans:report)
     replies=iter([
         dict(status='FOUND',entity=dict(type='person',name='Dana Actor'),support=[dict(source_url='https://example.org/cast',quote=body)]),
         entity_report()])
@@ -173,3 +174,12 @@ def test_terminal_loop_keeps_explicit_json_contract(monkeypatch):
     assert result=='{"status":"NOT_FOUND"}'
     assert calls[0][0][-1]['content']=='Return the typed JSON contract'
     assert calls[0][1]['response_format']=={'type':'json_object'}
+
+
+def test_support_ids_materialize_original_spans_without_model_text():
+    from gaia_agent.contracts import resolve_support_refs
+    spans={'S1':dict(source_url='https://example.org/cast',quote='Dana Actor plays Robin Example.',heading='Dana Actor Biography')}
+    report=resolve_support_refs(dict(support_refs=['S1'],support=[{'quote':'invented'}]),spans)
+    assert report['support'][0]['quote']=='Dana Actor plays Robin Example.'
+    with pytest.raises(ValueError,match='valid support_refs'):
+        resolve_support_refs(dict(support_refs=['UNKNOWN']),spans)

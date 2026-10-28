@@ -115,3 +115,14 @@ def aggregate_contract(report, question, columns):
         raise ValueError('no columns selected')
     total=sum((columns[n] for n in included),Decimal(0))
     return total,included,excluded
+
+
+def resolve_support_refs(report, spans):
+    """Model selects IDs; code supplies immutable original excerpts, never paraphrases."""
+    refs=report.get('support_refs')
+    if not isinstance(refs,list) or not refs or any(not isinstance(ref,str) or ref not in spans for ref in refs):
+        raise ValueError('select valid support_refs IDs returned by find_evidence')
+    result=dict(report)
+    result['support']=[dict(source_url=spans[ref]['source_url'],quote=spans[ref]['quote'],
+                            subject_quote=spans[ref]['heading']) for ref in refs]
+    return result

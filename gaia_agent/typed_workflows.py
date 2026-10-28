@@ -1,8 +1,9 @@
 """Bounded typed workflows for tabular sums and first-name entity queries."""
 import json
 import re
+import hashlib
 from decimal import Decimal
-from .contracts import ask_json, aggregate_contract, validate_entity, project_first_name
+from .contracts import ask_json, aggregate_contract, validate_entity, project_first_name, resolve_support_refs
 from .evidence import read_json_object
 
 
@@ -124,6 +125,7 @@ def solve_entity(agent,question,registry,trace):
         trace.add('entity_contract_deferred',reason=str(exc));return None
     trace.add('entity_chain_plan',steps=steps)
     web=registry.subset({'search_web','fetch_url'})
+    spans={}
     def find_evidence(query):
         matches=[]
         if len(query.strip())<3:
@@ -143,8 +145,11 @@ def solve_entity(agent,question,registry,trace):
                 match=re.search(re.escape(pattern),body,re.I)
                 if match is not None:hits.append(match)
             for match in hits:
-                matches.append({'source_url':source,'quote':body[max(0,match.start()-180):match.end()+450],
-                                'heading':body[:400]})
+                record={'source_url':source,'quote':body[max(0,match.start()-180):match.end()+450], 'heading':body[:400]}
+                ref='S'+hashlib.sha256(json.dumps(record,ensure_ascii=False).encode()).hexdigest()[:12]
+                if ref not in spans:trace.add('evidence_span',span_id=ref,**record)
+                spans[ref]=record
+                matches.append(dict(span_id=ref,**record))
                 if len(matches)>=5:return json.dumps(matches,ensure_ascii=False)
         if not pages_found:
             raise ValueError('No fetched pages. Call fetch_url on a relevant search result before find_evidence; this tool does not search the web.')
@@ -161,12 +166,12 @@ def solve_entity(agent,question,registry,trace):
             '"entity":{"type":"requested type","name":"full name",'
             '"first_name":"first given name when needed", "additional_given_names":[], '
             '"name_parts_status":"explicit|unambiguous|ambiguous"},'
-            '"support":[{"source_url":"retrieved URL","quote":"literal page-body quotation"}]}. '
+            '"support_refs":["span_id returned by find_evidence"]}. '
             'Open actual source pages; snippets and empty pages are not evidence. '
             'After fetching a page, use find_evidence with ONE distinctive name or work-title fragment to recover literal excerpts. It does not search the web. NEVER translate or invent connective words. '
-            'For dependent lookups, quote both entity names together; on a biography page, you may instead '
-            'add subject_quote to the support entry with the exact heading establishing the page subject, '
-            'and quote the actual filmography/relationship row separately. '
+            'Call find_evidence after fetching sources and select its span_id values as support_refs. '
+            'Do not write quotations yourself. Select excerpts establishing the relevant entity and relation; '
+            'for biography tables the program also preserves the page heading as subject evidence. '
             'Name parts must follow evidence/conventions; do not return all given names when only '
             'the first is requested; preserve genuine compound names and mark ambiguity. '
             'Never substitute the predecessor for the missing target. If a source fails, try '
@@ -178,10 +183,11 @@ def solve_entity(agent,question,registry,trace):
         report=None
         for attempt,turns in enumerate((4,2)):
             raw=agent._run_tool_loop(messages,web,trace,turns,'subtask',
-                final_instruction='Tool budget exhausted. Return ONLY the entity JSON contract for this step. Preserve original-language quotes exactly, including table line breaks. If evidence is missing, status NOT_FOUND.',
+                final_instruction='Tool budget exhausted. Return ONLY the entity JSON contract for this step, using support_refs IDs from find_evidence; never invent excerpts. If evidence is missing, status NOT_FOUND.',
                 final_json=True)
             report=read_json_object(raw)
             try:
+                report=resolve_support_refs(report,spans)
                 entity=validate_entity(report,step['output_type'],predecessor,trace.events)
                 if index==len(steps)-1:
                     answer=project_first_name(entity)
