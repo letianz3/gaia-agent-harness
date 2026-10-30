@@ -77,7 +77,7 @@ def temporal_neighbors(report, year, events):
     events=[dict(e,result=e.get('result','').split('\nNAVIGATION LINKS',1)[0]) for e in events]
     if report.get('year')!=year:raise ValueError('wrong requested year')
     source=report.get('source_url',''); time_quote=report.get('time_quote','')
-    if not isinstance(time_quote,str) or not re.search(r'\b'+str(year)+r'\b',time_quote):
+    if not isinstance(time_quote,str) or not re.search(r'(?<!\d)'+str(year)+r'(?!\d)',time_quote):
         raise ValueError('dated roster evidence required, not a current roster')
     validate_support([{'source_url':source,'quote':time_quote}],events)
     for e in events:

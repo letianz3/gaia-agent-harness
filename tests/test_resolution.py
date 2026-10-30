@@ -42,6 +42,14 @@ def test_temporal_rejects_fabricated_period_quote():
  r=roster()
  with pytest.raises(ValueError):temporal_neighbors(r,2018,[page('Current roster with no historical provenance')])
 
+
+def test_year_matching_supports_non_latin_date_suffixes():
+ r=roster();r['time_quote']='Official 2018\u5e74 roster for the season'
+ body=r['time_quote']+'\n'+'\n'.join(x['quote'] for x in r['rows'])
+ assert temporal_neighbors(r,2018,[page(body)])=='Alpha, Delta'
+ r['time_quote']='Official 20180 roster for the season'
+ with pytest.raises(ValueError):temporal_neighbors(r,2018,[page(body)])
+
 def test_temporal_sampling_fills_late_gaps():
  from gaia_agent.media_tools import coverage_times
  times=coverage_times([30,35,40],120)
