@@ -69,6 +69,13 @@ def normalize_answer(answer: str | None, question: str = "") -> str:
         text = lines[0]
 
     question_lower = question.lower()
+    # A single lexical answer can acquire sentence punctuation during synthesis.
+    # Limit this to word/name/dialogue questions; preserve numbers, initials,
+    # filenames, and explicit punctuation/transcription requests.
+    word_request = re.search(r'\b(?:word|first name|last name|surname|say|said|response)\b', question_lower)
+    exact_punctuation = re.search(r'punctuation|verbatim|exact transcription', question_lower)
+    if word_request and not exact_punctuation and re.fullmatch(r'[A-Za-z]{4,}[.!]', text):
+        text = text[:-1]
     requests_comma_list = bool(
         re.search(r"comma[ -](?:separated|delimited)(?: list)?", question_lower)
     )

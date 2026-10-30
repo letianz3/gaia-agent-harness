@@ -8,6 +8,14 @@ def test_item_evidence_recovers_middle_not_only_head_tail():
  body='Header '+('x'*4000)+'\nBlue widget is excluded because it contains alloy.\n'+('y'*4000)
  assert 'contains alloy' in item_evidence([page(body)],['Blue widget'])
 
+
+def test_single_word_sentence_punctuation_cleanup_is_narrow():
+ from gaia_agent.agent import normalize_answer
+ assert normalize_answer('Certainly.','What does the speaker say?')=='Certainly'
+ assert normalize_answer('Certainly!','Return verbatim punctuation of the response')=='Certainly!'
+ for value in ('3.14','A.','report.txt','U.S.'):
+  assert normalize_answer(value,'What is the response?')==value
+
 def test_counts_distinct_species_within_frame_not_across_frames():
  def group(key):return dict(species_key=key,visual_features='visible trait',location='left',uncertain=False)
  report={'frames':[{'timestamp':1,'groups':[group('A'),group('A'),group('B')]},{'timestamp':2,'groups':[group('C')]}]}
