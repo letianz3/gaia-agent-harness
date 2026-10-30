@@ -235,6 +235,9 @@ class BaselineAgent:
         sheets = sample_video_contact_sheets(
             video_path, media_dir, timestamps_seconds
         )
+        if re.search(r'\bspecies\b',question,re.I) and re.search(r'simultaneous|same time',question,re.I):
+            from .resolution import inspect_census
+            return inspect_census(self,question,sheets,video_path,media_dir,trace)
         return audio_note + "\n" + self._vision_observation(
             "Inspect these timestamped frames from a YouTube video. Describe only visual "
             f"evidence relevant to this task; do not guess dialogue. Task: {question}",
@@ -1035,7 +1038,10 @@ Respond ONLY as JSON:
                   result=self._message_to_text({'role': 'user', 'content': task_context}))
         from .source_lists import solve_source_list
         from .typed_workflows import solve_typed_task
-        source_answer = solve_typed_task(self, question, files, registry, trace)
+        from .resolution import solve_temporal_neighbors
+        source_answer = solve_temporal_neighbors(self, question, registry, trace)
+        if source_answer is None:
+            source_answer = solve_typed_task(self, question, files, registry, trace)
         if source_answer is None:
             source_answer = solve_source_list(self, question, task_context, trace, registry)
         if source_answer is not None:
@@ -1074,7 +1080,7 @@ Respond ONLY as JSON:
                 evidence,
             )
 
-        incomplete = any(e['type'] in ('entity_chain_blocked', 'table_contract_blocked') for e in trace.events)
+        incomplete = any(e['type'] in ('entity_chain_blocked', 'table_contract_blocked', 'temporal_contract_blocked') for e in trace.events)
         trace.add('run_finished', status='INCOMPLETE' if incomplete else 'COMPLETED', **self.gateway.stats())
         trace.save(self.settings.runs_dir / task_id / "trace.json", answer)
         return answer

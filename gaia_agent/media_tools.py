@@ -21,8 +21,8 @@ def download_youtube_video(url_or_id: str, output_dir: Path) -> Path:
         # Visual inspection does not need an audio stream. Many YouTube videos expose
         # low-resolution video only as a separate stream, so keep video-only fallbacks.
         "format": (
-            "worstvideo[ext=mp4][vcodec!=none]/"
-            "worstvideo[vcodec!=none]/worst[vcodec!=none]"
+            "bestvideo[height<=720][ext=mp4][vcodec!=none]/"
+            "best[height<=720][vcodec!=none]/worst[vcodec!=none]"
         ),
         "outtmpl": template,
         "quiet": True,
@@ -113,6 +113,32 @@ def sample_video_contact_sheets(
         path = output_dir / f"contact_sheet_{sheet_index + 1}.jpg"
         sheet.save(path, quality=88)
         paths.append(path)
+    return paths
+
+
+def video_detail_frames(video_path, output_dir, timestamps):
+    """Bounded individual frames: keep native detail instead of a thumbnail sheet."""
+    import cv2
+    capture=cv2.VideoCapture(str(video_path))
+    paths=[]
+    try:
+        fps=capture.get(cv2.CAP_PROP_FPS)
+        duration=capture.get(cv2.CAP_PROP_FRAME_COUNT)/fps if fps>0 else 0
+        if duration<=0: raise ValueError('invalid video duration')
+        for i,t in enumerate(timestamps[:6]):
+            if not isinstance(t,(float,int)) or isinstance(t,bool) or not math.isfinite(t) or not 0<=t<duration:
+                continue
+            capture.set(cv2.CAP_PROP_POS_MSEC,t*1000)
+            ok,frame=capture.read()
+            if not ok:continue
+            image=Image.fromarray(cv2.cvtColor(frame,cv2.COLOR_BGR2RGB))
+            image.thumbnail((1280,720))
+            path=output_dir/f'detail_{i}_{t:.2f}.jpg'
+            image.save(path,quality=95)
+            paths.append((t,path))
+    finally:
+        capture.release()
+    if not paths:raise ValueError('no valid detail frames')
     return paths
 
 
