@@ -97,8 +97,36 @@ def solve_temporal_neighbors(agent,question,registry,trace):
     match=re.search(r'\bas of\s+(?:[A-Za-z]+\s+)?((?:19|20)\d{2})',question,re.I)
     if not match or not re.search(r'\bbefore\b.*\bafter\b',question,re.I) or not re.search(r'\bnumber',question,re.I):return None
     year=int(match[1])
+    from .registry import ToolRegistry
+    web=ToolRegistry()
+    web.audit=registry.audit
+    def historical_search(query):
+        if str(year) not in query:query+=' '+str(year)
+        raw,ok=registry.execute('search_web',json.dumps({'query':query}))
+        if not ok:raise ValueError(raw)
+        try:
+            rows=json.loads(raw)
+            if isinstance(rows,list):
+                rows.sort(key=lambda r:str(year) not in (r.get('title','')+' '+r.get('url','')))
+                return json.dumps(rows,ensure_ascii=False)
+        except ValueError:pass
+        return raw
+    def historical_fetch(url):
+        raw,ok=registry.execute('fetch_url',json.dumps({'url':url}))
+        if not ok:raise ValueError(raw)
+        dates=re.findall(r'UPDATE[^\n]*?(20\d{2}|19\d{2})',raw,re.I)
+        if dates and any(int(y)!=year for y in dates):
+            raise ValueError('Historical constraint: this page explicitly updates to '+','.join(dates)+
+                             ', not '+str(year)+'. Open a year-specific source; do not retry this current roster.')
+        return raw
+    for schema in registry.schemas():
+        f=schema['function']
+        if f['name'] in ('search_web','fetch_url'):
+            web.register(f['name'],f['description'],f['parameters'],
+                         historical_search if f['name']=='search_web' else historical_fetch,parallel_safe=True)
     prompt=('Find the HISTORICAL roster needed by the question, never substitute today\'s roster. '
-        'Use an official season-specific register or archived page. Search with the target year, '
+        'Use an official season-specific register or archived page; a reputable historical register is also acceptable. '
+        'Prioritize results whose title or URL explicitly includes the year. Avoid repeating identical failed searches. Search with the target year, '
         'follow relevant historical links, and try native-language queries if needed. '
         'Return ONLY JSON {"year":integer,"source_url":"fetched URL","time_quote":"literal heading or dated statement establishing roster period, not copyright",'
         '"target_number":integer,"rows":[{"number":integer,"surname":"Roman surname",'
@@ -108,7 +136,7 @@ def solve_temporal_neighbors(agent,question,registry,trace):
         'If unavailable return {}. Task: '+question)
     messages=[{'role':'system','content':prompt}]
     for attempt,turns in enumerate((7,3)):
-        raw=agent._run_tool_loop(messages,registry.subset({'search_web','fetch_url'}),trace,turns,'subtask',
+        raw=agent._run_tool_loop(messages,web,trace,turns,'subtask',
                                 final_instruction='Return the historical roster JSON with literal quotes or {}.',final_json=True)
         report=read_json_object(raw)
         try:answer=temporal_neighbors(report,year,trace.events)

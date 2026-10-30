@@ -125,7 +125,8 @@ def video_detail_frames(video_path, output_dir, timestamps):
         fps=capture.get(cv2.CAP_PROP_FPS)
         duration=capture.get(cv2.CAP_PROP_FRAME_COUNT)/fps if fps>0 else 0
         if duration<=0: raise ValueError('invalid video duration')
-        for i,t in enumerate(timestamps[:6]):
+        timestamps=coverage_times(timestamps,duration)
+        for i,t in enumerate(timestamps):
             if not isinstance(t,(float,int)) or isinstance(t,bool) or not math.isfinite(t) or not 0<=t<duration:
                 continue
             capture.set(cv2.CAP_PROP_POS_MSEC,t*1000)
@@ -140,6 +141,18 @@ def video_detail_frames(video_path, output_dir, timestamps):
         capture.release()
     if not paths:raise ValueError('no valid detail frames')
     return paths
+
+
+def coverage_times(requested,duration,limit=6):
+    """Fill largest temporal gaps so model-selected early frames cannot hide later events."""
+    times=sorted(set(float(t) for t in requested[:3] if isinstance(t,(int,float))
+                     and not isinstance(t,bool) and math.isfinite(t) and 0<=t<duration))
+    while len(times)<limit:
+        edges=[0,*times,duration]
+        a,b=max(zip(edges,edges[1:]),key=lambda pair:pair[1]-pair[0])
+        if b-a<0.01:break
+        times.append((a+b)/2);times.sort()
+    return times
 
 
 def extract_fen(text: str) -> str:

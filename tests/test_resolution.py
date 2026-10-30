@@ -33,3 +33,14 @@ def test_temporal_neighbors_sort_numbers_and_require_dated_evidence():
 def test_temporal_rejects_fabricated_period_quote():
  r=roster()
  with pytest.raises(ValueError):temporal_neighbors(r,2018,[page('Current roster with no historical provenance')])
+
+def test_temporal_sampling_fills_late_gaps():
+ from gaia_agent.media_tools import coverage_times
+ times=coverage_times([30,35,40],120)
+ assert len(times)==6 and max(times)>90 and {30,35,40}.issubset(times)
+ assert all(0<=t<120 for t in times)
+
+def test_plant_part_rules_override_culinary_membership():
+ from gaia_agent.source_lists import render_list
+ report={'items':[dict(text='unknown seed',include=True,basis='edible seed',plant_part='seed',excluded_by=[]),dict(text='unknown leaf',include=True,basis='edible leaf',plant_part='leaf',excluded_by=[])]}
+ assert render_list(report,dict(mode='classify',items=['unknown seed','unknown leaf'],plant_parts=True))=='unknown leaf'
