@@ -43,3 +43,29 @@ spreadsheet dimensions, placeholder plans, failure to reuse predecessor evidence
 and a generic terminal prompt overriding structured output. Each was repaired and
 regression-tested. Subsequent actor failures also showed the cost of stricter
 evidence requirements; rejected claims are preserved in local traces.
+
+## R8: evidence resolution before synthesis
+
+- **Visual census:** download up to 720p within the existing byte cap, inspect
+  each contact sheet separately, select one candidate per segment, and reread
+  individual frames. The model records visible identities, distinguishing traits
+  and positions. Code deduplicates species keys within each frame and computes
+  the maximum; it never unions species across different timestamps. Missing or
+  uncertain frame records fail validation. Sampling and identity recognition can
+  still miss species; this is an observed maximum, not exhaustive video analysis.
+- **Classification:** supply item-specific source passages instead of only a
+  global excerpt. Require literal question phrases for exclusions, then audit the
+  proposal. For strict botanical vegetable requests, classify the consumed plant
+  part and apply an explicit edible-root/stem/leaf/flower rule in code. This is a
+  documented domain policy, not a universal definition of vegetable. There is no
+  mapping from food names to answers; anatomical facts remain model-dependent.
+- **Historical numeric neighbors:** prioritize dated search results, preserve
+  navigation to archives, reject explicit conflicting update years at fetch time,
+  and require quoted rows from a single dated source. Python selects target-1
+  and target+1. Navigation labels cannot serve as factual evidence. A matching
+  year alone does not prove month-specific validity, target identity or role;
+  those semantic judgments still need source interpretation. This route supports
+  exact adjacent numbers, not arbitrary nearest occupied positions.
+
+All three are bounded routes layered around the ordinary tool loop. They add
+evidence structure rather than additional free-form critics to every request.

@@ -215,3 +215,48 @@ Table arithmetic/coverage is now code-owned and its repair reproduced, but
 semantic category assignments are still an uncertainty. Keep the experiment
 branch and previous stable checkpoint; do not interpret 17/20 as a deterministic
 performance guarantee. No paid repeat runs are needed merely to repeat this result.
+
+
+## R8: inspect evidence at the resolution required by the task
+
+The three R7 misses were analyzed separately before editing:
+
+1. Video: low-quality downloads and whole-video thumbnail interpretation collapsed
+   distinct species into a broad group. A coarse-to-fine scan initially still chose
+   only early frames. Inspecting each time-segment sheet separately finally recovered
+   the late co-occurrence; code counts unique species per frame, never across frames.
+   Targeted run `targeted_20261030T221927Z` and full run both answered correctly.
+2. Botanical list: a long source explicitly described an excluded item's botanical
+   property, but the global evidence excerpt omitted it. Item-level passages help,
+   yet a fresh critic still invented exclusions and confused seeds with vegetables.
+   The final route requires consumed-part fields, applies a documented part-based
+   domain rule in code, and rejects nonliteral invented exclusion criteria. Schema
+   failures now identify the affected item/field. Final full-run output was correct;
+   some supporting anatomical descriptions remained incorrect. No food-name answer
+   table was added.
+3. Historical roster: current NPB pages explicitly said 2026 but were used for a
+   July 2023 question. The new route rejects conflicting update years, prioritizes
+   dated search results, retains archive navigation and checks quoted numeric rows.
+   It still failed to find the necessary roster. A season-statistics page can also
+   be confused with jersey numbers; date relevance alone is insufficient. The
+   attempted reports had unsupported quotes or wrong/missing numeric neighbors.
+
+The first two targeted variants did not solve these tasks. Their source commits
+and traces are retained. Final fresh run `full_20261030T222219Z` scored 17/20 with
+390,706 chat tokens. The two repairs were offset by a chemistry-page lookup failure
+and a dialogue punctuation change. The chemistry trace guessed URLs returning 404,
+then fell back to another textbook and supplied an unsupported surname. This path
+was unchanged by the classification/temporal routes; no causal regression claim is
+made from one stochastic run.
+
+A generic, narrow single-word punctuation normalization produced 18/20 when the
+same whole answer set was submitted again, with zero new model calls. Original
+answers remain intact; `normalization_rescore.json` records the transformation.
+No question IDs, benchmark answers or target-specific timestamps are in runtime code.
+
+Final tests: 89 passed. A post-run fix supports years adjacent to non-Latin date
+suffixes; recorded-report replay still rejects the unsupported historical quote.
+Next unresolved categories: complete historical-source acquisition and exact source
+identity/navigation for similarly titled web documents. Historical retrieval now
+costs substantially more without improving accuracy; do not describe the entire
+change as a cost optimization or a robust 18/20 guarantee.

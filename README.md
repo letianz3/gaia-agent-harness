@@ -36,6 +36,8 @@ failed experiments are retained in Git, without mixing answers across runs.
 | R6 · `c5c7ebb` | 15/20 | 348,129 | A source PDF exceeded the shared 3 MB cap. Add bounded streaming with a separate 50 MB PDF budget and retain long-document tails. | Funding repair reproduced, but actor lookup, spreadsheet membership and name formatting regressed. Not promoted; retain R5 pending broader validation. |
 | R7a · `81bd708` | 14/20 | 370,173 | Move sums, entity joins and evidence references into code-owned contracts. | Spreadsheet repaired; strict entity evidence reduced coverage. Preserved as an experiment. |
 | R7b · `87e0b03` | **17/20** | 370,653 | Keep deterministic table selection/arithmetic and bounded PDFs; make strict entity chains opt-in. | All three regression targets correct; the gain over R5 is the funding answer. Entity gains use the existing lookup route, not proof of the experimental chain. |
+| R8a · `83ea796` | 17/20 | 390,706 | Inspect video segments individually, classify plant parts before applying rules, and enforce dated roster evidence. | Video and botanical targets repaired; historical roster remains unresolved. An unrelated webpage answer and terminal punctuation regressed. |
+| R8b · `b1e5982` | **18/20*** | 390,706 | Normalize sentence punctuation on single-word answer contracts. | Re-score the same complete answer set; no new model calls or answer-set mixing. Historical roster and chemistry-page lookup remain unresolved. |
 
 R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
 recipe wording and chess perception-to-engine execution. The actor answer also
@@ -43,11 +45,13 @@ became correct while a funding identifier regressed, giving **three gains minus
 one regression = two net gains** over R1. Those unchanged web paths vary between
 runs; this is not a controlled causal ablation or proof of generalization.
 
-R7b remaining failures: video species distinctions, botanical membership, and
-finding a complete historical roster. R7b uses 5.8% more chat tokens than R5.
-The table repair reproduces in targeted/full runs; one 17/20 run is not a stability guarantee.
-See [code-owned contracts](CONTRACTS.md) for the default and experimental routes.
-R7b passes 77 local tests; tests validate execution contracts, not factual accuracy.
+*R8b is a normalization-only re-score of R8a, not a second fresh model run.
+R8 uses 5.4% more chat tokens than R7b. Video repair reproduced in targeted and
+full runs; botanical classification succeeded in the full run but needs further
+stability checks. Source identity and historical retrieval remain limitations.
+The current tree passes 89 local tests, including a subsequent non-Latin date
+parsing fix (`00e3182`); that fix was trace-replayed, not freshly benchmarked.
+See [code-owned contracts](CONTRACTS.md) and [evaluation details](EVALUATION.md).
 Token totals exclude audio transcription. R0 is preserved as a local source
 snapshot. Stable tags preserve R1/R4/R5, and
 experiment branches retain R2/R3. Raw traces and attachments remain local.

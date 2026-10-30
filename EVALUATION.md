@@ -1,3 +1,36 @@
+# R8 evidence resolution
+
+Fresh run `full_20261030T222219Z`, runtime `83ea796`: **17/20**.
+Normalization-only re-score at `b1e5982`: **18/20 (90%)**. The original answers,
+original official score, normalized answers and second official score are saved
+separately. All 20 answers were processed by the same normalization function;
+only one answer changed. No extra model calls or answers from other runs.
+
+| Metric | R7b | R8 fresh run |
+|---|---:|---:|
+| Official correct / 20 before format re-score | 17 | 17 |
+| Official correct / 20 after format re-score | 17 | 18 |
+| Chat tokens | 370,653 | 390,706 |
+| Tool calls | 73 | 62 |
+| Model requests | 165 | 159 |
+| Summed agent latency, seconds | 281.867 | 329.397 |
+
+Video and botanical tasks changed from wrong to correct. The historical roster
+remained unresolved. The chemistry-source surname regressed; a one-word dialogue
+answer gained a terminal period. Removing that period recovered one point.
+Token cost rose 5.4%; latency rose 16.9%. Video costs grew from 17,058 to 28,600
+tokens; historical retrieval grew from 10,040 to 58,567 without solving the task.
+This temporal route is therefore a reliability guard, not a demonstrated accuracy
+or efficiency improvement. Botanical anatomical labels still contain factual
+errors even though the final list is correct.
+
+89 tests pass in the final tree. After scoring, a Unicode date-boundary bug was
+fixed at `00e3182`; replaying the recorded historical report still rejects its
+unsupported quote. No fresh benchmark score is claimed for that later fix.
+All experiments and the R7 checkpoint are preserved. No model was changed.
+
+---
+
 # R7 selective code-owned contracts
 
 Final runtime `87e0b03`, run `full_20261028T043133Z`: **17/20 (85%)**.
