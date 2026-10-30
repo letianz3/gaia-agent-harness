@@ -145,7 +145,7 @@ def video_detail_frames(video_path, output_dir, timestamps):
 
 def coverage_times(requested,duration,limit=6):
     """Fill largest temporal gaps so model-selected early frames cannot hide later events."""
-    times=sorted(set(float(t) for t in requested[:3] if isinstance(t,(int,float))
+    times=sorted(set(float(t) for t in requested[:limit] if isinstance(t,(int,float))
                      and not isinstance(t,bool) and math.isfinite(t) and 0<=t<duration))
     while len(times)<limit:
         edges=[0,*times,duration]

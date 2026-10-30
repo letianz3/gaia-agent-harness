@@ -153,7 +153,7 @@ def bounded_response_body(response) -> bytes:
     return bytes(body)
 
 
-def fetch_url(url: str) -> str:
+def fetch_url(url: str, link_query: str | None = None) -> str:
     for _ in range(5):
         response = requests.get(
             _validate_public_url(url), timeout=20, allow_redirects=False, stream=True,
@@ -188,7 +188,18 @@ def fetch_url(url: str) -> str:
         'verify you are human', 'checking your browser', 'enable javascript and cookies',
         'performing security verification')):
         raise ValueError("Blocked by website challenge; no factual page evidence retrieved")
-    return f"SOURCE: {url}\n{text[:30_000]}"
+    links=''
+    if link_query:
+        from urllib.parse import urljoin
+        candidates=[]
+        for a in soup.find_all('a',href=True):
+            href=urljoin(url,a['href']); label=a.get_text(' ',strip=True)
+            if href.startswith(('http://','https://')):
+                candidates.append((label,href))
+        candidates=list(dict.fromkeys(candidates))
+        candidates.sort(key=lambda pair:link_query.casefold() not in (' '.join(pair)).casefold())
+        links='\nNAVIGATION LINKS (discovery only, not factual evidence):\n'+json.dumps(candidates[:60],ensure_ascii=False)
+    return f"SOURCE: {url}\n{text[:30_000]}{links}"
 
 
 def _youtube_video_id(url_or_id: str) -> str:

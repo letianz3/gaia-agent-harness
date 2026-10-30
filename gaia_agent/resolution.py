@@ -43,14 +43,17 @@ def census_count(report, timestamps):
 
 def inspect_census(agent, question, sheets, video_path, media_dir, trace):
     from .media_tools import video_detail_frames
-    proposal=read_json_object(agent._vision_observation(
-        'Locate up to three frames with the most DISTINCT species and ambiguous overlaps. '
+    times=[]
+    for sheet in sheets[:6]:
+        proposal=read_json_object(agent._vision_observation(
+        'Locate ONE frame on THIS sheet with the most DISTINCT species and ambiguous overlaps. '
         'Do not count all members of a broad animal group as one species; age/sex differences '
         'alone do not establish separate species. Return JSON {"timestamps":[seconds],"reason":"visible differences"}. '
-        'Use timestamps printed on the sheets. Task: '+question,sheets,trace,'video_census_scan',json_output=True))
-    times=proposal.get('timestamps',[])
+        'Use timestamps printed on the sheet. Inspect every cell before choosing. Task: '+question,[sheet],trace,'video_census_scan',json_output=True))
+        candidates=proposal.get('timestamps',[])
+        if isinstance(candidates,list):times.extend(candidates[:1])
     if not isinstance(times,list) or not times:raise ValueError('candidate timestamps missing')
-    frames=video_detail_frames(video_path,media_dir,times[:3])
+    frames=video_detail_frames(video_path,media_dir,times[:6])
     stamps=[t for t,_ in frames]
     report=read_json_object(agent._vision_observation(
         'Inspect each individual frame independently. Inventory DISTINCT species visible simultaneously, '
@@ -112,12 +115,13 @@ def solve_temporal_neighbors(agent,question,registry,trace):
         except ValueError:pass
         return raw
     def historical_fetch(url):
-        raw,ok=registry.execute('fetch_url',json.dumps({'url':url}))
-        if not ok:raise ValueError(raw)
+        from .tools import fetch_url
+        raw=fetch_url(url,link_query=str(year))
         dates=re.findall(r'UPDATE[^\n]*?(20\d{2}|19\d{2})',raw,re.I)
         if dates and any(int(y)!=year for y in dates):
+            links=raw.split('NAVIGATION LINKS',1)[-1] if 'NAVIGATION LINKS' in raw else ''
             raise ValueError('Historical constraint: this page explicitly updates to '+','.join(dates)+
-                             ', not '+str(year)+'. Open a year-specific source; do not retry this current roster.')
+                             ', not '+str(year)+'. Open a year-specific source; do not retry this current roster. Navigation only: '+links)
         return raw
     for schema in registry.schemas():
         f=schema['function']
@@ -126,7 +130,7 @@ def solve_temporal_neighbors(agent,question,registry,trace):
                          historical_search if f['name']=='search_web' else historical_fetch,parallel_safe=True)
     prompt=('Find the HISTORICAL roster needed by the question, never substitute today\'s roster. '
         'Use an official season-specific register or archived page; a reputable historical register is also acceptable. '
-        'Prioritize results whose title or URL explicitly includes the year. Avoid repeating identical failed searches. Search with the target year, '
+        'Prioritize results whose title or URL explicitly includes the year. Follow navigation links to season archives; do not invent URLs. Avoid repeating identical failed searches. Search with the target year, '
         'follow relevant historical links, and try native-language queries if needed. '
         'Return ONLY JSON {"year":integer,"source_url":"fetched URL","time_quote":"literal heading or dated statement establishing roster period, not copyright",'
         '"target_number":integer,"rows":[{"number":integer,"surname":"Roman surname",'

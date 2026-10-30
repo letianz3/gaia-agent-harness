@@ -24,7 +24,7 @@ def list_source(question, context):
             items = [item.strip() for item in block.split(',')]
             if (5 <= len(items) <= 100 and len(set(items)) == len(items)
                     and all(re.fullmatch(r"[\w '\-]+", item) and len(item) < 80 for item in items)):
-                return {'mode':'classify', 'source':block, 'items':items,
+                return {'mode':'classify', 'source':block, 'items':items, 'question':question,
                         'plant_parts': bool(re.search(r'botan',question,re.I) and re.search(r'vegetable',question,re.I))}
     return None
 
@@ -36,6 +36,8 @@ def render_list(report, spec):
     exclusions = report.get('exclusion_criteria', [])
     if not isinstance(exclusions, list) or not all(isinstance(x, str) and x.strip() for x in exclusions):
         raise ValueError('invalid exclusion criteria')
+    if spec.get('question') and any(x not in spec['question'] for x in exclusions):
+        raise ValueError('exclusion_criteria must copy literal phrases from the question; invented exclusions are forbidden')
     names = []
     selected = []
     for row in rows:
@@ -87,7 +89,7 @@ def solve_source_list(agent, question, context, trace, registry=None):
     prompt = (
         'Handle a source-grounded list task. Return JSON {"items":['
         '{"text":"exact original item/ingredient phrase","include":true,"basis":"brief factual basis"}]}. '
-        'For classification: also return exclusion_criteria (a list of the explicit exclusion rules from the question). '
+        'For classification: also return exclusion_criteria (copy literal exact phrases specifying exclusions from the question, never paraphrase or add rules). '
         'For EVERY input item, return excluded_by (one boolean per exclusion criterion). '
         'First evaluate whether each item matches each exclusion definition, independently of whether it is '
         'commonly called a member of the target category. The program will remove ANY item that matches '
