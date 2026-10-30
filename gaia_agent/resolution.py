@@ -73,6 +73,8 @@ def inspect_census(agent, question, sheets, video_path, media_dir, trace):
 
 
 def temporal_neighbors(report, year, events):
+    # Links can discover archives but their labels cannot establish roster facts.
+    events=[dict(e,result=e.get('result','').split('\nNAVIGATION LINKS',1)[0]) for e in events]
     if report.get('year')!=year:raise ValueError('wrong requested year')
     source=report.get('source_url',''); time_quote=report.get('time_quote','')
     if not isinstance(time_quote,str) or not re.search(r'\b'+str(year)+r'\b',time_quote):

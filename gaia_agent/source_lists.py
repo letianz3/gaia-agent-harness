@@ -60,8 +60,12 @@ def render_list(report, spec):
         include=row['include']
         if spec.get('plant_parts'):
             part=row.get('plant_part')
+            if isinstance(part,str):
+                part=part.strip().casefold()
+                part={'roots':'root','tubers':'tuber','bulbs':'bulb','stems':'stem','leaves':'leaf',
+                      'flowers':'flower','fruits':'fruit','seeds':'seed','grains':'grain','non-plant':'nonplant'}.get(part,part)
             if part not in {'root','tuber','bulb','stem','leaf','flower','fruit','seed','grain','processed','nonplant'}:
-                raise ValueError('classify the consumed anatomical part, not culinary membership')
+                raise ValueError(f'{text}: invalid plant_part={part!r}; choose root,tuber,bulb,stem,leaf,flower,fruit,seed,grain,processed,nonplant. This field is required on EVERY row.')
             include=part in {'root','tuber','bulb','stem','leaf','flower'}
         if include and not any(excluded):
             selected.append(text)
@@ -88,7 +92,8 @@ def solve_source_list(agent, question, context, trace, registry=None):
         observed += '\nItem-specific original page passages:\n'+item_evidence(trace.events[start:],spec['items'])
     prompt = (
         'Handle a source-grounded list task. Return JSON {"items":['
-        '{"text":"exact original item/ingredient phrase","include":true,"basis":"brief factual basis"}]}. '
+        '{"text":"exact original item/ingredient phrase","include":true,"plant_part":"required if plant_parts=true",'
+        '"basis":"brief factual basis","excluded_by":[]}]}. '
         'For classification: also return exclusion_criteria (copy literal exact phrases specifying exclusions from the question, never paraphrase or add rules). '
         'For EVERY input item, return excluded_by (one boolean per exclusion criterion). '
         'First evaluate whether each item matches each exclusion definition, independently of whether it is '
@@ -130,7 +135,7 @@ def solve_source_list(agent, question, context, trace, registry=None):
                            'Resolve contradictions with the quoted source. Everyday usage cannot override an explicit technical exclusion.'}]
                 continue
         except (ValueError, TypeError) as exc:
-            trace.add('source_list_rejected', mode=spec['mode'], attempt=attempt, reason=str(exc))
+            trace.add('source_list_rejected', mode=spec['mode'], attempt=attempt, reason=str(exc), raw=raw)
             messages.extend([{'role':'assistant','content':raw},
                              {'role':'user','content':f'Contract violation: {exc}. Repair the JSON using the original source.'}])
             continue

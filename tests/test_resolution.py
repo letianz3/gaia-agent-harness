@@ -44,3 +44,25 @@ def test_plant_part_rules_override_culinary_membership():
  from gaia_agent.source_lists import render_list
  report={'items':[dict(text='unknown seed',include=True,basis='edible seed',plant_part='seed',excluded_by=[]),dict(text='unknown leaf',include=True,basis='edible leaf',plant_part='leaf',excluded_by=[])]}
  assert render_list(report,dict(mode='classify',items=['unknown seed','unknown leaf'],plant_parts=True))=='unknown leaf'
+
+def test_invented_category_exclusions_are_rejected():
+ from gaia_agent.source_lists import render_list
+ spec=dict(mode='classify',items=['leaf'],question='Exclude fruit, classify leaf.')
+ report=dict(exclusion_criteria=['herbs'],items=[dict(text='leaf',include=True,basis='leaf',excluded_by=[True])])
+ with pytest.raises(ValueError,match='invented exclusions'):render_list(report,spec)
+
+def test_navigation_is_not_historical_evidence():
+ r=roster();body='Current roster\nNAVIGATION LINKS (discovery only):\n'+r['time_quote']+'\n'+'\n'.join(x['quote'] for x in r['rows'])
+ with pytest.raises(ValueError):temporal_neighbors(r,2018,[page(body)])
+
+def test_optional_navigation_resolves_and_prioritizes_year(monkeypatch):
+ from types import SimpleNamespace
+ import gaia_agent.tools as t
+ monkeypatch.setattr(t,'_validate_public_url',lambda u:u)
+ html=b'<html><p>Current roster</p><a href="/now">Current</a><a href="/archive/2018">2018 roster</a></html>'
+ response=SimpleNamespace(is_redirect=False,raise_for_status=lambda:None,close=lambda:None,iter_content=lambda **kw:iter([html]))
+ monkeypatch.setattr(t.requests,'get',lambda *a,**kw:response)
+ result=t.fetch_url('https://example.org/current',link_query='2018')
+ assert 'https://example.org/archive/2018' in result
+ links=result.split('NAVIGATION LINKS',1)[1]
+ assert links.index('/archive/2018')<links.index('/now')
