@@ -84,7 +84,7 @@ def temporal_source_conflict(raw, year):
     return not bool(dated_section or reverse_section)
 
 
-def temporal_neighbors(report, year, events):
+def temporal_neighbors(report, year, events, *, check_names=True):
     # Links can discover archives but their labels cannot establish roster facts.
     events=[dict(e,result=e.get('result','').split('\nNAVIGATION LINKS',1)[0]) for e in events]
     if report.get('year')!=year:raise ValueError('wrong requested year')
@@ -105,7 +105,8 @@ def temporal_neighbors(report, year, events):
         if native and native != surname:
             validate_support([{'source_url':source,'quote':quote}],events,[native])
             # A translation is an identity join, not permission to invent a name.
-            validate_support(row.get('name_support'),events,[native,surname])
+            if check_names:
+                validate_support(row.get('name_support'),events,[native,surname])
         else:
             validate_support([{'source_url':source,'quote':quote}],events,[surname])
         if not re.search(r'(?<!\d)'+str(n)+r'(?!\d)',quote):raise ValueError('number missing from row evidence')
@@ -113,6 +114,39 @@ def temporal_neighbors(report, year, events):
         by_number[n]=surname
     if not all(n in by_number for n in (target-1,target,target+1)):raise ValueError('missing exact numeric neighbors')
     return by_number[target-1]+', '+by_number[target+1]
+
+
+def resolve_roster_names(agent, report, registry, trace):
+    """Resolve only name rendering after historical row provenance has passed."""
+    from .contracts import ask_json
+    for row in report['rows']:
+        native=row.get('native_name');surname=row.get('surname')
+        if not native or native==surname:continue
+        try:
+            validate_support(row.get('name_support'),trace.events,[native,surname])
+            continue
+        except ValueError:pass
+        args=json.dumps({'query':f'"{native}" "{surname}" biography'})
+        raw,ok=registry.execute('search_web',args)
+        trace.record_tool_call()
+        trace.add('tool_call',name='search_web',arguments=args,result=raw,succeeded=ok,phase='identity_bridge')
+        try:results=json.loads(raw) if ok else []
+        except ValueError:results=[]
+        if not isinstance(results,list):results=[]
+        for result in results[:2]:
+            url=result.get('url') if isinstance(result,dict) else None
+            if not isinstance(url,str):continue
+            args=json.dumps({'url':url})
+            body,success=registry.execute('fetch_url',args)
+            trace.record_tool_call()
+            trace.add('tool_call',name='fetch_url',arguments=args,result=body,succeeded=success,phase='identity_bridge')
+        packet=item_evidence(trace.events,[native,surname])
+        alias=ask_json(agent,'Provide literal bilingual identity evidence joining the native name '+native+
+            ' to Roman surname '+surname+'. Return {"support":[{"source_url":"actual source URL",'
+            '"quote":"literal contiguous source text containing the native and Roman names"}]}. '
+            'Use only fetched text below; never invent or translate a quotation. If unavailable use empty support. '+packet,trace)
+        row['name_support']=alias.get('support',[])
+    return report
 
 
 def solve_temporal_neighbors(agent,question,registry,trace):
@@ -169,7 +203,8 @@ def solve_temporal_neighbors(agent,question,registry,trace):
         'Generate at most TWO search queries to locate a historical numbered roster. '
         'One English query and one in the native language of the relevant organization. '
         'Include organization identity, requested year and local terms for roster/uniform numbers. '
-        'Do not guess answers, player neighbors or URLs. Return {"queries":["...","..."]}. Task: '+question,trace)
+        'Do not guess answers, player neighbors or URLs. Never invent native-script spelling of a Roman name; '
+        'retain its Roman spelling if uncertain. Return {"queries":["...","..."]}. Task: '+question,trace)
     observations=[]
     queries=discovery.get('queries',[])
     if isinstance(queries,list):
@@ -186,6 +221,11 @@ def solve_temporal_neighbors(agent,question,registry,trace):
         raw=agent._run_tool_loop(messages,web,trace,turns,'subtask',
                                 final_instruction='Return the historical roster JSON with literal quotes or {}.',final_json=True)
         report=read_json_object(raw)
+        try:
+            temporal_neighbors(report,year,trace.events,check_names=False)
+        except (ValueError,TypeError):pass
+        else:
+            report=resolve_roster_names(agent,report,registry,trace)
         try:answer=temporal_neighbors(report,year,trace.events)
         except (ValueError,TypeError) as exc:
             trace.add('temporal_contract_rejected',reason=str(exc),report=report)
