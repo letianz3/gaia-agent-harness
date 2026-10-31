@@ -70,6 +70,22 @@ def test_identity_bridge_cannot_join_two_people_with_same_surname():
  with pytest.raises(ValueError):validate_name_bridge(row,[page(text)])
 
 
+def test_provenance_stage_accepts_native_row_but_final_stage_requires_identity():
+ r=roster();r['rows'][0]['quote']='Number 9 Player デルタ pitcher'
+ body=r['time_quote']+'\n'+'\n'.join(x['quote'] for x in r['rows'])
+ temporal_neighbors(r,2018,[page(body)],check_names=False)
+ with pytest.raises(ValueError):temporal_neighbors(r,2018,[page(body)])
+
+
+def test_literal_bridge_copies_raw_span_and_handles_native_name_spacing():
+ from gaia_agent.resolution import literal_name_bridge,validate_name_bridge
+ body='Profile: Delta (甲 乙) is a pitcher. More profile text.'
+ support=literal_name_bridge([page(body)],'甲乙','Delta')
+ assert support and support[0]['quote'] in body
+ validate_name_bridge({'native_name':'甲乙','surname':'Delta','name_support':support},[page(body)])
+ assert literal_name_bridge([page(body)],'甲丙','Delta')==[]
+
+
 def test_year_matching_supports_non_latin_date_suffixes():
  r=roster();r['time_quote']='Official 2018\u5e74 roster for the season'
  body=r['time_quote']+'\n'+'\n'.join(x['quote'] for x in r['rows'])
