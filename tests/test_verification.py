@@ -14,6 +14,20 @@ def test_count_question_preserves_complete_bounded_collection_section():
     assert len(packet)<8000
 
 
+def test_requested_period_outranks_candidate_names_in_unrelated_sections():
+    body='SOURCE: https://example.org/archive\n'
+    body+='Records for April 2018\n[\nedit\n]\n'+('Applicant Alice Approver Bob\n'*100)
+    body+='Records for May 2018\n[\nedit\n]\nProject\nApplicant\nApprover\nExample\nCharlie\nDana\n'
+    body+='Records for June 2018\n[\nedit\n]\nOther rows'
+    packet=evidence_packet([observation(body)],focus=('Who applied for the project in May 2018?','Alice','Bob'))
+    assert 'Charlie' in packet and 'Dana' in packet
+    # The source header can retain its initial few characters; the selected
+    # source window must be the requested period, not candidate-biased excerpts.
+    record=json.loads(packet)
+    selected=record['excerpt'].split('[relevant source windows]')[1]
+    assert 'Alice' not in selected and 'Other rows' not in selected
+
+
 def test_evidence_selection_materializes_only_observed_spans_without_promoting_verdict():
     from gaia_agent.evidence import materialize_support
     packet='\n'.join(json.dumps(row) for row in [

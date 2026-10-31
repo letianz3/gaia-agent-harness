@@ -52,10 +52,17 @@ def relevant_excerpt(value, focus, limit):
     # Counting requires collection coverage, not isolated keyword hits. Preserve
     # a bounded, explicitly delimited matching section when the source exposes it.
     question = focus[0] if focus else ''
+    headings = list(re.finditer(r'(?m)^([^\n]{1,100})\n\[\nedit\n\]', value))
+    period = re.search(r'\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:19|20)\d{2}\b', question, re.IGNORECASE)
+    if period:
+        for current, following in zip(headings, headings[1:]):
+            if period[0].casefold() in current[1].casefold():
+                section = value[current.start():following.start()]
+                if len(section) <= 4000:
+                    return value[:200] + '\n[relevant source windows]\n' + section, 3000
     count = re.search(r'\bhow many\s+(.{1,80}?)\s+(?:were|was|are|have|has|did|does|do|had|will|can)\b', question, re.IGNORECASE)
     if count:
         subject = re.sub(r'^the\s+', '', count[1], flags=re.IGNORECASE).casefold()
-        headings = list(re.finditer(r'(?m)^([^\n]{1,100})\n\[\nedit\n\]', value))
         for current, following in zip(headings, headings[1:]):
             if current[1].strip().casefold() == subject:
                 section = value[current.start():following.start()]

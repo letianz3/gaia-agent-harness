@@ -532,6 +532,7 @@ Full-set regression exposed verification failures outside the historical task:
 | --- | --- | --- | --- | --- |
 | `c6d031a` | 16/20 | 627,986 | 91 | Historical roster and funding repaired, but generated quotations caused rejections and an explanatory replacement broke exact-match output. |
 | `4f85e21` | 19/20 | 434,696 | 69 | Evidence-ID selection with code-copied spans repaired those regressions; a collection-count question lost its complete list during excerpt selection. |
+| `93f3882` | 17/20 | 507,144 | See traces | Collection count repaired; two search-only evidence chains and a failed bilingual-name search regressed. |
 
 Runs: `full_20261031T023417Z` and `full_20261031T024134Z` respectively.
 The critic now judges source contents and selects evidence IDs; code materializes
@@ -545,3 +546,17 @@ the section is at most 4,000 characters. Other pages retain relevance-ranked
 windows. The total evidence packet remains bounded. This is a limited collection
 coverage improvement, not a universal table parser or completeness proof for
 arbitrary web pages. No benchmark names, year ranges or answers appear in this rule.
+
+The third full run is `full_20261031T024759Z`. Its historical failure came from
+search-backend errors on a whitespace-separated CJK name, after the correct
+dated roster had already been found. Search queries now normalize inter-character
+CJK spacing while evidence keeps the original spelling. Verification receives
+only direct observations and supplied task data, not discovery snippets.
+
+`00bc328` targeted the three regressions: actor identity and historical neighbors
+passed, while the sports-statistics lookup remained unverified because one fetched
+profile caused the first source-acquisition guard to skip other unread search leads.
+`6df66e0` instead fetches unread top leads before both reviews, with a four-fetch
+task-wide cap and no repeat of previously attempted URLs. A subsequent fresh
+sports-statistics run (`targeted_20261031T025729Z`) passed. These improvements
+remain generic source-acquisition rules, not task-ID exceptions or stored answers.
