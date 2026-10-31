@@ -26,7 +26,8 @@ def relevant_excerpt(value, focus, limit):
     ranked=[]
     for pos in sorted(set(hits)):
         start=max(0,pos-200); end=min(len(value),pos+500); text=value[start:end]; lower=text.casefold()
-        score=sum(term in lower for term in terms)+4*sum(p.casefold() in lower for p in phrases)
+        # Answer-bearing spans must not lose to keyword-dense menus/copyright.
+        score=sum(term in lower for term in terms)+100*sum(p.casefold() in lower for p in phrases)
         ranked.append((score,start,end))
     windows=[];used=0
     for score,start,end in sorted(ranked,reverse=True):

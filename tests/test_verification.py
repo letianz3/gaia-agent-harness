@@ -21,6 +21,13 @@ def test_both_candidates_receive_relevant_evidence():
     assert 'ALPHA belongs' in p and 'BETA belongs' in p
 
 
+def test_metadata_keyword_density_cannot_evict_answer_passage():
+    question='What surname appears in chemistry exercises licensed by Alice Baker and Carol Davis in introductory materials?'
+    body=(question+' copyright licensed metadata ')*60+'\nThe horse doctor was called Exampleton.\n'+(question+' footer ')*60
+    packet=evidence_packet([observation(body)],focus=(question,'Exampleton','Anothername'))
+    assert 'horse doctor was called Exampleton' in packet
+
+
 def test_provenance_allows_layout_whitespace_not_paraphrase_or_joined_spans():
     p=json.dumps(dict(id='E0',kind='observation',excerpt='award\n ZX-8912 [separate span] unrelated'))
     def check(q):return has_valid_support(json.dumps({'support':[{'id':'E0','quote':q}]}),p)
