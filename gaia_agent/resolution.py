@@ -44,6 +44,9 @@ def census_identity(group):
 def census_count(report, timestamps, details=False):
     """Maximum distinct certain species in any one inspected frame.
 
+    Only groups inside the category the task counts are counted: a group marked
+    in_requested_category false (another animal in a bird count, a person in a
+    vehicle count) is ignored, not treated as an error.
     Degrades per group, not per call: an uncertain or under-described group
     cannot add a distinct species, so it is excluded from the count and
     reported, which makes the result a lower bound rather than a failure.
@@ -61,7 +64,8 @@ def census_count(report, timestamps, details=False):
         for group in groups:
             key=group.get('species_key') if isinstance(group,dict) else None
             if (not isinstance(key,str) or not key.strip() or not group.get('visual_features')
-                    or not group.get('location') or group.get('uncertain') is not False):
+                    or not group.get('location') or group.get('uncertain') is not False
+                    or group.get('in_requested_category') is False):
                 excluded+=1
                 continue
             try:
@@ -115,13 +119,14 @@ def inspect_census(agent, question, sheets, video_path, media_dir, trace):
             'species merely heard or seen in another frame. Return JSON {"frames":[{"timestamp":number,'
             '"groups":[{"species_key":"canonical species name ONLY, never age/sex/individual ID","life_stage":"adult/chick/juvenile/unknown",'
             '"visual_features":"visible distinguishing traits",'
-            '"location":"where in this frame","uncertain":false}]}]}. '
+            '"location":"where in this frame","in_requested_category":true,"uncertain":false}]}]}. '
+            'Set in_requested_category false for anything visible that is not the kind of thing the task counts. '
             'Mark uncertain true when identities cannot be separated. Do not output a count. '
             'Image timestamps, in order: '+json.dumps(stamps)+' Task: '+question,
             [p for _,p in batch],trace,'video_census_detail',json_output=True))
         if isinstance(report.get('frames'),list):
             reports.extend(f for f in report['frames'] if isinstance(f,dict) and f.get('timestamp') in stamps)
-    merged={'frames':reports}
+    merged={'frames':refine_with_zoom(agent,question,reports,dict(frames),media_dir,trace)}
     summary=census_count(merged,[t for t,_ in frames],details=True)
     count=summary['maximum']
     trace.add('video_census_validated',report=merged,maximum=count,**{k:v for k,v in summary.items() if k!='maximum'},
@@ -129,6 +134,64 @@ def inspect_census(agent, question, sheets, video_path, media_dir, trace):
     note=('; '+str(summary['excluded_groups'])+' uncertain groups not counted, so this is a lower bound') if summary['lower_bound'] else ''
     return json.dumps({'maximum_observed_species':count,'frames':merged['frames'],
                        'limitation':'sampled frames only; not an exhaustive proof of the whole-video maximum'+note},ensure_ascii=False)
+
+
+CENSUS_ZOOM_FRAMES = 4
+CENSUS_ZOOM_MIN_GAP = 10.0  # seconds between zoomed frames
+
+
+def refine_with_zoom(agent, question, reports, paths, media_dir, trace):
+    """Re-inspect the most populated frames through multiscale views.
+
+    The coarse pass ranks frames; the fine pass sees each top frame as the full
+    image plus enlarged overlapping tiles and returns that frame's COMPLETE,
+    corrected inventory, which replaces the coarse one. Replacement rather than
+    union keeps one bird from being counted twice under two names.
+    """
+    from .perception import describe_views, multiscale_views
+
+    def species(frame):
+        keys = set()
+        for group in frame.get('groups', []):
+            if isinstance(group, dict) and group.get('uncertain') is False and _has_identity(group):
+                keys.add(census_identity(group))
+        return len(keys)
+
+    ranked = sorted((f for f in reports if f.get('timestamp') in paths), key=lambda f: (-species(f), f['timestamp']))
+    chosen = []
+    for frame in ranked:  # best first, but spread over time so one scene cannot take every slot
+        if all(abs(frame['timestamp'] - other['timestamp']) >= CENSUS_ZOOM_MIN_GAP for other in chosen):
+            chosen.append(frame)
+        if len(chosen) == CENSUS_ZOOM_FRAMES:
+            break
+    refined = {f['timestamp']: f for f in reports}
+    for frame in chosen:
+        stamp = frame['timestamp']
+        views = multiscale_views(paths[stamp], media_dir / 'zoom')
+        report = read_json_object(agent._vision_observation(
+            describe_views(views) + ' A coarse pass of the full image reported: ' +
+            json.dumps(frame.get('groups', []), ensure_ascii=False) + '. Re-inspect THIS ONE frame with the zoomed tiles '
+            'and return its complete corrected inventory of DISTINCT species, including small or distant individuals '
+            'the coarse pass may have missed, and correcting any misidentified or duplicated group. Same species_key for '
+            'adults and young of one species; separate keys only for visibly different species. Return JSON '
+            '{"groups":[{"species_key":"canonical species name ONLY","life_stage":"adult/chick/juvenile/unknown",'
+            '"visual_features":"visible distinguishing traits","location":"where in the FULL image","in_requested_category":true,"uncertain":false}]}. '
+            'Set in_requested_category false for anything visible that is not the kind of thing the task counts. '
+            'Mark uncertain true when an identity cannot be separated. Do not output a count. Task: ' + question,
+            [p for _, p in views], trace, 'video_census_zoom', json_output=True))
+        if isinstance(report.get('groups'), list):
+            refined[stamp] = {'timestamp': stamp, 'groups': report['groups'], 'refined': 'multiscale'}
+            trace.add('video_census_refined', timestamp=stamp, coarse=species(frame),
+                      fine=species(refined[stamp]), views=len(views))
+    return list(refined.values())
+
+
+def _has_identity(group):
+    try:
+        census_identity(group)
+        return True
+    except ValueError:
+        return False
 
 
 def temporal_source_conflict(raw, year):

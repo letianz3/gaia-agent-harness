@@ -797,3 +797,38 @@ video species count (about half of runs) is limited by the vision model's
 recognition of a small third species, not by retrieval, verification or
 formatting. R15 reached 20/20 twice (r15a runs 1-2) but the unchanged repeat
 did not, so a stable 20/20 is still not established. Local tests: 200 pass.
+
+## R16: multiscale image input for perception (targeted video evaluation)
+
+Scope: only the video species-count question, which failed in about half of
+R14/R15 runs because the vision model missed a small third species. No other
+code path changed, so no full 20-question run was made for this step.
+
+Changes (general, task-independent):
+
+- `perception.py`: `multiscale_views` turns any image into the full image plus
+  four overlapping tiles (20% overlap), each enlarged so its short side reaches
+  the model's 768-pixel rendering budget; tiles are never downscaled. The prompt
+  states that tiles are crops of one scene, so the full image arbitrates identity.
+- Census is coarse-then-fine: the existing batch inventory ranks frames; the top
+  four frames, at least 10 s apart, are re-inspected through multiscale views and
+  their complete corrected inventory REPLACES the coarse one (no union, so one
+  bird cannot be counted twice under two names).
+- Counting respects the requested category: every group states
+  `in_requested_category`; groups outside it (a seal in a bird count) are ignored.
+
+Targeted results (full agent pipeline per run, gpt-4.1-mini, same seeded video):
+
+| Variant | Correct | Notes |
+| --- | ---: | --- |
+| R15 baseline | ~1/2 of runs | third species often never perceived |
+| multiscale, top-3 frames, no category field | 4/6 | one run zoomed only early frames (2); one counted a seal (4) |
+| + time-diverse frame choice, category field | **6/6** | |
+| same code, repeated | **6/6** | |
+
+The zoom pass recovered the small species whenever it covered the relevant
+scene. Species identities remain imperfect: some frames name a penguin as
+Gentoo/King/Chinstrap or a petrel as an albatross, yet no run exceeded the
+correct count. Cost rose from about 18k to about 76k chat tokens for this
+question (four extra five-image calls). 12/12 is a targeted development result
+on one video, not a held-out or full-set claim. Local tests: 206 pass.
