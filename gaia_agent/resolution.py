@@ -110,7 +110,11 @@ def temporal_neighbors(report, year, events, *, check_names=True):
         n=row.get('number'); surname=row.get('surname'); quote=row.get('quote','')
         if type(n) is not int or n in by_number or not isinstance(surname,str) or not surname.strip():raise ValueError('invalid roster row')
         native=row.get('native_name')
-        if native and native != surname:
+        if not check_names:
+            # The extraction stage may omit native_name. Validate row provenance
+            # first; full-name extraction and strict identity checks follow.
+            validate_support([{'source_url':source,'quote':quote}],events,min_quote_length=6)
+        elif native and native != surname:
             validate_support([{'source_url':source,'quote':quote}],events,[native],min_quote_length=6)
             # A translation is an identity join, not permission to invent a name.
             if check_names:
