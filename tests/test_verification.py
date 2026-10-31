@@ -1,0 +1,40 @@
+import json
+from gaia_agent.evidence import evidence_packet,has_valid_support
+from gaia_agent.verification import select_verified
+
+
+def observation(text):return dict(type='tool_call',name='fetch_url',succeeded=True,result=text)
+
+
+def test_middle_passage_survives_focused_packet_and_noise():
+    body='SOURCE: https://example.org/paper\n'+'irrelevant '*2000+'\nResearcher ABC was funded by award ZX-8912.\n'+'tail '*3000
+    events=[observation(body)]+[observation('generic unrelated page '+str(i)) for i in range(15)]
+    p=evidence_packet(events,focus=('Which award supported researcher ABC?','ZX-8912','WRONG-77'))
+    assert len(p)<=8000 and 'Researcher ABC was funded by award ZX-8912.' in p
+    assert has_valid_support(json.dumps({'support':[{'id':'E0','quote':'Researcher ABC was funded by award ZX-8912.'}]}),p)
+
+
+def test_both_candidates_receive_relevant_evidence():
+    events=[observation('SOURCE: https://example.org/a\n'+'x '*5000+'Candidate ALPHA belongs to the wrong researcher.'),
+            observation('SOURCE: https://example.org/b\n'+'y '*5000+'Candidate BETA belongs to researcher ABC.')]
+    p=evidence_packet(events,focus=('Which candidate belongs to researcher ABC?','ALPHA','BETA'))
+    assert 'ALPHA belongs' in p and 'BETA belongs' in p
+
+
+def test_provenance_allows_layout_whitespace_not_paraphrase_or_joined_spans():
+    p=json.dumps(dict(id='E0',kind='observation',excerpt='award\n ZX-8912 [separate span] unrelated'))
+    def check(q):return has_valid_support(json.dumps({'support':[{'id':'E0','quote':q}]}),p)
+    assert check('award ZX-8912')
+    assert not check('grant ZX-8912')
+    assert not check('ZX-8912 [separate span] unrelated')
+
+
+def test_no_incumbent_privilege_and_no_unsupported_pass():
+    p=json.dumps(dict(id='E0',kind='observation',excerpt='Researcher ABC received award ZX-8912.'))
+    supported={'verdict':'PASS','support':[{'id':'E0','quote':'ABC received award ZX-8912'}]}
+    uncertain={'verdict':'UNCERTAIN','support':[]}
+    assert select_verified({'candidates':[dict(supported,id='A'),dict(uncertain,id='B')]},p)=='A'
+    assert select_verified({'candidates':[dict(uncertain,id='A'),dict(supported,id='B')]},p)=='B'
+    assert select_verified({'candidates':[dict(uncertain,id='A'),dict(uncertain,id='B')]},p) is None
+    assert select_verified({'candidates':[dict(supported,id='A'),dict(supported,id='B')]},p) is None
+    assert select_verified({'candidates':[dict(uncertain,id='A'),dict(id='B',verdict='PASS',support=[])]},p) is None

@@ -55,7 +55,7 @@ def test_fetch_rejects_challenge_and_private_redirect(monkeypatch):
         fetch_url('https://example.org')
 
 
-@pytest.mark.parametrize('review,expected', [('PASS', 'supported'), ('UNCERTAIN', 'original')])
+@pytest.mark.parametrize('review,expected', [('PASS', 'supported'), ('UNCERTAIN', 'Unable to verify answer')])
 def test_uncertainty_allows_one_acquisition_and_requires_review(monkeypatch, review, expected):
     from gaia_agent.agent import BaselineAgent
     from gaia_agent.tracing import Trace
@@ -70,8 +70,12 @@ def test_uncertainty_allows_one_acquisition_and_requires_review(monkeypatch, rev
     monkeypatch.setattr(agent, '_critique_answer', critique)
     def acquire(*args):
         acquisitions.append(True)
+        args[5].add('tool_call',name='fetch_url',succeeded=True,result='verified supported answer')
         return 'supported'
     monkeypatch.setattr(agent, '_revise_answer', acquire)
+    raw=json.dumps({'candidates':[{'id':'A','verdict':'UNCERTAIN','support':[]},
+        {'id':'B','verdict':review,'support':[{'id':'E3','quote':'verified supported answer'}]}]})
+    monkeypatch.setattr(agent,'_plain_completion',lambda *a,**k:SimpleNamespace(usage=None,choices=[SimpleNamespace(message=SimpleNamespace(content=raw))]))
     assert agent._recover_answer('task', 'task', 'original', None, Trace('id', 'task'), None, '') == expected
     assert len(acquisitions) == 1
 

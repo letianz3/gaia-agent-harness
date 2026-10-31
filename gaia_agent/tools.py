@@ -250,14 +250,14 @@ def build_tool_registry(
     )
     registry.register(
         "fetch_url",
-        "Read the visible text of a public web page returned by search_web.",
+        "Read a public page. To follow a linked chapter or paper, supply link_query to return relevant real navigation URLs instead of guessing paths.",
         {
             "type": "object",
-            "properties": {"url": {"type": "string"}},
+            "properties": {"url": {"type": "string"}, "link_query": {"type": "string"}},
             "required": ["url"],
             "additionalProperties": False,
         },
-        lambda url: external_cache.call("fetch_url", fetch_url, url=url),
+        lambda url,link_query=None: external_cache.call("fetch_url", fetch_url, url=url,link_query=link_query),
     )
     registry.register(
         "youtube_transcript",

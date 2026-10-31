@@ -706,7 +706,7 @@ def test_targeted_recovery_rejects_unsupported_challenger(tmp_path: Path) -> Non
     )
     # The fake solver provides prose only, no tool observation. A critic's bare
     # PASS cannot authorize replacing the incumbent under the evidence contract.
-    assert answer == "wrong"
+    assert answer == "Unable to verify answer"
     trace = json.loads(
         (settings.runs_dir / "replan-task" / "trace.json").read_text(encoding="utf-8")
     )
@@ -714,14 +714,11 @@ def test_targeted_recovery_rejects_unsupported_challenger(tmp_path: Path) -> Non
     critiques = [event for event in trace["events"] if event["type"] == "critique"]
     assert [event["replan_round"] for event in plans] == [0]
     assert sum(e['type'] == 'targeted_acquisition' for e in trace['events']) == 1
-    assert [event["passes"] for event in critiques] == [False, False]
-    selection = next(
-        event for event in trace["events"] if event["type"] == "candidate_selection"
-    )
-    assert selection["selected"] == "incumbent"
+    assert [event["passes"] for event in critiques] == [False]
+    assert any(e['type']=='answer_verification_unresolved' for e in trace['events'])
 
 
-def test_uncertain_challenger_preserves_incumbent(tmp_path: Path) -> None:
+def test_uncertain_candidates_do_not_privilege_incumbent(tmp_path: Path) -> None:
     class ConservativeCompletions:
         def __init__(self) -> None:
             self.plain_outputs = iter(
@@ -765,14 +762,10 @@ def test_uncertain_challenger_preserves_incumbent(tmp_path: Path) -> None:
     answer = BaselineAgent(settings, client=client).answer(
         "Find a value", "conservative-task", task_dir
     )
-    assert answer == "original"
+    assert answer == "Unable to verify answer"
     trace = json.loads(
         (settings.runs_dir / "conservative-task" / "trace.json").read_text(
             encoding="utf-8"
         )
     )
-    selection = next(
-        event for event in trace["events"] if event["type"] == "candidate_selection"
-    )
-    assert selection["selected"] == "incumbent"
-    assert selection["reason"] == "challenger_uncertain"
+    assert any(e['type']=='answer_verification_unresolved' for e in trace['events'])

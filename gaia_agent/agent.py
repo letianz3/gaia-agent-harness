@@ -928,6 +928,8 @@ Respond ONLY as JSON:
         evidence: str,
     ) -> str:
         incumbent = answer
+        evidence=evidence_packet(trace.events,focus=(question,incumbent)) or evidence
+        trace.add('verification_evidence',candidates=[incumbent],packet=evidence)
         violation = explicit_answer_violation(question, incumbent)
         if violation and self.settings.max_reflection_rounds >= 2:
             return self._repair_format(question, incumbent, violation, trace)
@@ -976,32 +978,19 @@ Respond ONLY as JSON:
             )
             return incumbent
 
+        shared_evidence=evidence_packet(trace.events,focus=(question,incumbent,challenger)) or evidence
         if challenger == incumbent:
-            trace.add('candidate_selection', selected='incumbent', reason='unchanged_candidate')
-            return incumbent
-        challenger_evidence = self._evidence_packet(trace)
-        challenger_verdict, challenger_feedback = self._critique_answer(
-            question, challenger, challenger_evidence, trace, 2
-        )
-        if challenger_verdict == "PASS":
-            trace.add(
-                "candidate_selection",
-                selected="challenger",
-                reason="challenger_passed",
-                incumbent=incumbent[:2_000],
-                challenger=challenger[:2_000],
-            )
-            return challenger
-
-        trace.add(
-            "candidate_selection",
-            selected="incumbent",
-            reason=f"challenger_{challenger_verdict.lower()}",
-            challenger_feedback=challenger_feedback,
-            incumbent=incumbent[:2_000],
-            challenger=challenger[:2_000],
-        )
-        return incumbent
+            # New observations may now verify an unchanged answer; do not confuse
+            # agreement with proof, or skip review of the acquired evidence.
+            verdict,_=self._critique_answer(question,incumbent,shared_evidence,trace,2)
+            if verdict=='PASS':
+                trace.add('candidate_selection',selected='incumbent',reason='unchanged_but_verified')
+                return incumbent
+            from .verification import UNVERIFIED
+            trace.add('answer_verification_unresolved',reason='unchanged candidate remains unverified')
+            return UNVERIFIED
+        from .verification import compare_answers
+        return compare_answers(self,question,incumbent,challenger,shared_evidence,trace)
 
     def answer(self, question: str, task_id: str, task_dir: Path) -> str:
         try:
@@ -1082,7 +1071,7 @@ Respond ONLY as JSON:
                 evidence,
             )
 
-        incomplete = any(e['type'] in ('entity_chain_blocked', 'table_contract_blocked', 'temporal_contract_blocked') for e in trace.events)
+        incomplete = any(e['type'] in ('entity_chain_blocked', 'table_contract_blocked', 'temporal_contract_blocked', 'answer_verification_unresolved') for e in trace.events)
         trace.add('run_finished', status='INCOMPLETE' if incomplete else 'COMPLETED', **self.gateway.stats())
         trace.save(self.settings.runs_dir / task_id / "trace.json", answer)
         return answer
