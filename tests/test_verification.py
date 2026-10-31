@@ -27,6 +27,27 @@ def test_evidence_selection_materializes_only_observed_spans_without_promoting_v
         assert materialize_support({'verdict':'PASS','evidence_ids':ids},packet)['support']==[]
 
 
+def test_search_only_research_fetches_bounded_actual_sources_and_verifier_excludes_snippets():
+    from types import SimpleNamespace
+    from gaia_agent.evidence import direct_evidence
+    from gaia_agent.tracing import Trace
+    from gaia_agent.verification import fetch_search_only_sources
+    trace=Trace('test','Question')
+    for i in range(5):
+        trace.add('tool_call',name='search_web',succeeded=True,result=json.dumps([{'url':f'https://example.org/{i}'}]))
+    calls=[]
+    def execute(name,args):
+        calls.append(args)
+        return 'SOURCE: '+json.loads(args)['url']+'\nObserved content',True
+    registry=SimpleNamespace(execute=execute)
+    fetch_search_only_sources(registry,trace)
+    assert len(calls)==3
+    fetch_search_only_sources(registry,trace)
+    assert len(calls)==3
+    packet=direct_evidence(evidence_packet(trace.events))
+    assert 'discovery_only' not in packet and 'Observed content' in packet
+
+
 def test_recovery_deduplicates_successful_reads_but_allows_new_queries_and_retries():
     from types import SimpleNamespace
 

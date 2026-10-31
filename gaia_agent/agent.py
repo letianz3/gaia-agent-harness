@@ -783,6 +783,9 @@ Existing evidence, if this is a replan:
         trace: Trace,
         round_number: int,
     ) -> tuple[str, str]:
+        from .evidence import direct_evidence
+
+        evidence = direct_evidence(evidence)
         contract_feedback = explicit_answer_violation(question, answer)
         if contract_feedback:
             trace.add(
@@ -955,6 +958,9 @@ Respond ONLY as JSON:
         evidence: str,
     ) -> str:
         incumbent = answer
+        from .verification import fetch_search_only_sources
+
+        fetch_search_only_sources(registry, trace)
         evidence=evidence_packet(trace.events,focus=(question,incumbent)) or evidence
         trace.add('verification_evidence',candidates=[incumbent],packet=evidence)
         violation = explicit_answer_violation(question, incumbent)

@@ -2,9 +2,34 @@
 import json
 import re
 
-from .evidence import has_valid_support, materialize_support, read_json_object
+from .evidence import direct_evidence, has_valid_support, materialize_support, read_json_object
 
 UNVERIFIED='Unable to verify answer'
+
+
+def fetch_search_only_sources(registry, trace):
+    """If research stopped at snippets, fetch at most one lead per query (three total)."""
+    if registry is None:
+        return
+    events=list(trace.events)
+    if any(e.get('type')=='tool_call' and e.get('succeeded') and e.get('name')!='search_web' for e in events):
+        return
+    seen=set()
+    for event in events:
+        if event.get('name')!='search_web' or not event.get('succeeded'):continue
+        try:rows=json.loads(event.get('result',''))
+        except (ValueError,TypeError):continue
+        if not isinstance(rows,list):continue
+        for row in rows:
+            url=row.get('url') if isinstance(row,dict) else None
+            if not isinstance(url,str) or not url.startswith(('https://','http://')) or url in seen:continue
+            seen.add(url)
+            args=json.dumps({'url':url})
+            raw,ok=registry.execute('fetch_url',args)
+            trace.record_tool_call()
+            trace.add('tool_call',name='fetch_url',arguments=args,result=raw,succeeded=ok,phase='discovery_to_evidence')
+            break
+        if len(seen)>=3:break
 
 
 class RecoveryRegistry:
@@ -79,6 +104,7 @@ def select_verified(report,evidence):
 
 
 def compare_answers(agent,question,first,second,evidence,trace):
+    evidence=direct_evidence(evidence)
     # Deliberately do not label either candidate as original, revised, or preferred.
     prompt=('Evaluate BOTH candidates independently against exactly the SAME source evidence. '
         'Neither candidate has priority. PASS requires literal evidence supporting the requested '

@@ -525,3 +525,23 @@ provenance/identity check, not a general semantic proof. Historical validation
 still operates at year/season granularity: a precise mid-season date may require
 additional change-history evidence. These are development-set improvements, not
 held-out generalization results.
+
+Full-set regression exposed verification failures outside the historical task:
+
+| Runtime | Official score | Chat tokens | Tool calls | Finding |
+| --- | --- | --- | --- | --- |
+| `c6d031a` | 16/20 | 627,986 | 91 | Historical roster and funding repaired, but generated quotations caused rejections and an explanatory replacement broke exact-match output. |
+| `4f85e21` | 19/20 | 434,696 | 69 | Evidence-ID selection with code-copied spans repaired those regressions; a collection-count question lost its complete list during excerpt selection. |
+
+Runs: `full_20261031T023417Z` and `full_20261031T024134Z` respectively.
+The critic now judges source contents and selects evidence IDs; code materializes
+the original spans and rejects invalid/discovery-only IDs. This avoids asking a
+model to transcribe time-stamped speech or retype website text. It does not promote
+UNCERTAIN to PASS or establish semantic entailment by ID existence alone.
+
+`93f3882` additionally preserves a complete matching section for "How many ..."
+questions when the fetched text has explicit edit-marked section boundaries and
+the section is at most 4,000 characters. Other pages retain relevance-ranked
+windows. The total evidence packet remains bounded. This is a limited collection
+coverage improvement, not a universal table parser or completeness proof for
+arbitrary web pages. No benchmark names, year ranges or answers appear in this rule.

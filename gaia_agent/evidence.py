@@ -38,6 +38,15 @@ def materialize_support(report, evidence):
     return report
 
 
+def direct_evidence(evidence):
+    """Research may use search leads; verification receives observed content only."""
+    try:
+        return '\n'.join(json.dumps(row, ensure_ascii=False) for row in map(json.loads, evidence.splitlines())
+                         if row.get('kind') in {'observation', 'task_input'})
+    except (ValueError, TypeError):
+        return ''
+
+
 def relevant_excerpt(value, focus, limit):
     """Rank literal source windows, never synthesize evidence or splice quotations."""
     # Counting requires collection coverage, not isolated keyword hits. Preserve

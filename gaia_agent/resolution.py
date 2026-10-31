@@ -173,7 +173,8 @@ def resolve_roster_names(agent, report, registry, trace):
             continue
         except ValueError:pass
         row['name_support']=literal_name_bridge(trace.events,native,surname)
-        for query in (f'{native} {surname}',f'{native} {surname} Wikipedia'):
+        search_name=re.sub(r'(?<=[\u3400-\u9fff])\s+(?=[\u3400-\u9fff])','',native)
+        for query in (f'{search_name} {surname}',f'{search_name} {surname} Wikipedia'):
             if row['name_support']:break
             args=json.dumps({'query':query})
             raw,ok=registry.execute('search_web',args)
