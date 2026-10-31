@@ -560,3 +560,52 @@ profile caused the first source-acquisition guard to skip other unread search le
 task-wide cap and no repeat of previously attempted URLs. A subsequent fresh
 sports-statistics run (`targeted_20261031T025729Z`) passed. These improvements
 remain generic source-acquisition rules, not task-ID exceptions or stored answers.
+
+### R12 final full-set comparison
+
+| Runtime | Local run | Official raw score | Chat tokens | Finding |
+| --- | --- | --- | --- | --- |
+| `6df66e0` | `full_20261031T025814Z` | 19/20 | 459,571 | Unread source acquisition improved; candidate-biased excerpts confused a nominator with a promoter. |
+| `8a18211` | `full_20261031T030428Z` | 17/20 | 499,053 | Month/year section priority helped scope; flattened table columns still confused different date fields, and two other web tasks regressed. |
+| `4f4e27d` | `full_20261031T031336Z` | 19/20 | 363,744 | Historical target correct; sports-statistics value correct but buried in explanatory prose. 71 tool calls, 287.3 summed task seconds. |
+| `4f4e27d` | `full_20261031T031828Z` | 18/20 | 496,625 | Historical target correct again; botanical-list fallback and bird species counting failed. 100 tool calls, 360.1 summed task seconds. |
+
+The last two runs used the same frozen runtime, fresh run-specific caches and
+gpt-4.1-mini. There was no intervening runtime edit or model upgrade. Simple HTML
+tables now repeat column headers alongside cell values before flattening; merged
+grids and mismatched rows are skipped rather than guessed. Month/year excerpt
+priority applies only to explicit edit-marked sections, not arbitrary documents.
+
+`b47a355` subsequently adds a pure final-output renderer, after all reasoning and
+verification. For an explicit count question, it extracts a unique numeric value
+directly attached to the requested unit phrase. Ambiguous, negated or uncertain
+counts remain unchanged. It neither chooses the first number nor adds facts.
+The renderer's output is never fed back into a model call.
+
+Applying that exact function to both complete frozen answer sets and submitting
+them again produced **20/20 and 18/20**, respectively. One answer changed in the
+first set; zero changed in the second. Raw answers remain intact. Each run stores
+`answers.rendered_r12.json` and `submission.rendered_r12.json`, explicitly marked
+as format-only with no model rerun. These are **re-scores, not two new model runs**;
+no answer sets were combined. The official leaderboard accepted the first perfect
+score. This does not demonstrate stable 20/20.
+
+Two remaining failure mechanisms in the second frozen run are actionable:
+
+- **Structured-list fallback:** the literal grocery-list task initially classified
+  the relevant plant parts correctly, but malformed exclusion fields and a missing
+  plant-part field on an excluded item invalidated the structured report. After
+  bounded retries, general-agent fallback discarded those useful classifications
+  and omitted two qualifying items. A future repair should retain validated rows
+  and repair only missing/invalid fields, with explicit applicability rules for
+  excluded items. This was a text classification task, not image recognition.
+- **Species identity:** video observations used separate species keys for an adult
+  and a chick of the same species. Counting unique raw keys therefore overcounted.
+  A future schema should separate canonical taxon identity from life stage and
+  validate aggregation; a prompt saying age is not species was insufficient.
+
+Neither follow-up is implemented in this frozen comparison. The historical task
+was correct in both final fresh runs, but its token cost still varied substantially.
+All 129 local tests pass after the final renderer, including synthetic negative
+cases; local tests establish implementation checks, not benchmark correctness or
+generalization. R12 remains an experimental branch, with earlier versions retained.

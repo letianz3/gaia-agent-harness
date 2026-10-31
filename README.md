@@ -22,8 +22,9 @@ This project composes Modules 0–11 around the Hugging Face Final Assignment ad
 Versions below track the same 20-question development set, not course-module
 numbers. R0 is the basic full-harness version, not the earlier Modules 0–3-only
 agent. It already includes the GAIA adapter and basic task-facing tools. Every
-row is a complete fresh run submitted to the official scorer;
-failed experiments are retained in Git, without mixing answers across runs.
+full-set row is a fresh run submitted to the official scorer unless explicitly
+marked as a re-score; targeted batches are labelled separately. Failed experiments
+are retained in Git, without mixing answers across runs.
 
 | Version / runtime commit | Score | Chat tokens | Change and reason | Feedback |
 |---|---:|---:|---|---|
@@ -41,6 +42,9 @@ failed experiments are retained in Git, without mixing answers across runs.
 | R9 · `6086685` | **18/20** | 497,302 | Isolate optional domain policies and strategy dispatch; narrow applicability and allow dated retrospective sources. | Fresh full run preserves score. Six non-GAIA smoke tasks have correct content (5/6 exact strings). Cost increased; broad generalization is not established. |
 | R10 experimental · `4585acc` | Targeted: **5/6** | 320,363 | Retrieve answer-relevant original passages, compare candidates equally, and avoid duplicate recovery requests. | Three fresh runs of two fluctuating tasks: both correct in 2/3 runs. Source selection still fails once; not a new full-set score. |
 | R11 experimental · `a67e37f` | Targeted: **6/6** | 233,540 | Flag unconfirmed author identity and bound same-document navigation across loop transitions. | Both fluctuating tasks correct in all three fresh rounds; 27.1% fewer tokens than R10's final batch. Small development sample, not a full-set or stability guarantee. |
+| R12 development · `c6d031a` → `8a18211` | 16 → 19 → 17 → 19 → 17/20 | See evaluation | Join historical native-language records to full identities; copy evidence spans in code, fetch unread leads and retain count/date scope. | Gains and regressions retained; search and verification remain variable. |
+| R12 frozen · `4f4e27d` | **19/20, 18/20** | 363,744 / 496,625 | Preserve simple HTML table column labels; freeze runtime for two fresh full runs. | Historical target correct in both; answer formatting, list fallback and species identity caused remaining failures. |
+| R12 output rendering · `b47a355` | **20/20*, 18/20*** | Same as above | Render an unambiguous requested numeric count only after reasoning finishes. | Re-score both complete frozen answer sets; no new model calls or mixed answers. First perfect score, not stable 20/20. |
 
 R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
 recipe wording and chess perception-to-engine execution. The actor answer also
@@ -49,6 +53,9 @@ one regression = two net gains** over R1. Those unchanged web paths vary between
 runs; this is not a controlled causal ablation or proof of generalization.
 
 *R8b is a normalization-only re-score of R8a, not a second fresh model run.
+R12's starred scores likewise apply only final formatting to existing answers;
+129 local tests pass. These 20 questions are a repeatedly used development set,
+so a perfect score does not establish held-out generalization.
 R8 uses 5.4% more chat tokens than R7b. Video repair reproduced in targeted and
 full runs; botanical classification succeeded in the full run but needs further
 stability checks. Source identity and historical retrieval remain limitations.
