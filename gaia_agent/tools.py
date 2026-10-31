@@ -299,8 +299,9 @@ def build_tool_registry(
             "required": ["url_or_id"],
             "additionalProperties": False,
         },
+        # Key by video ID so URL and ID spellings of one video share one observation.
         lambda url_or_id: external_cache.call(
-            "youtube_transcript", youtube_transcript, url_or_id=url_or_id
+            "youtube_transcript", youtube_transcript, url_or_id=_youtube_video_id(url_or_id)
         ),
     )
     if video_inspector is not None:

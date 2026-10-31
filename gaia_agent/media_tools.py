@@ -16,6 +16,9 @@ def download_youtube_video(url_or_id: str, output_dir: Path) -> Path:
     from yt_dlp import YoutubeDL
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    existing = sorted(p for p in output_dir.glob("video.*") if p.suffix not in (".part", ".ytdl"))
+    if existing:
+        return existing[0]  # idempotent: inspection reuses an already downloaded source video
     template = str(output_dir / "video.%(ext)s")
     options: dict[str, Any] = {
         # Visual inspection does not need an audio stream. Many YouTube videos expose
@@ -45,6 +48,9 @@ def download_youtube_audio(url: str, output_dir: Path) -> Path:
     """Fetch audio separately; no ffmpeg dependency or video-dialogue guessing."""
     from yt_dlp import YoutubeDL
     output_dir.mkdir(parents=True, exist_ok=True)
+    existing = sorted(p for p in output_dir.glob('audio.*') if p.suffix not in ('.part', '.ytdl'))
+    if existing and existing[0].stat().st_size <= 24000000:
+        return existing[0]
     with YoutubeDL({'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]',
                     'outtmpl': str(output_dir / 'audio.%(ext)s'), 'quiet': True,
                     'noplaylist': True, 'max_filesize': 24000000,
