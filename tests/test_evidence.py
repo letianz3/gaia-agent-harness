@@ -90,7 +90,7 @@ def test_broken_review_never_launches_more_research(monkeypatch, problem):
         args[3].add('critique', next_action='acquire_evidence', target='Fetch a source', **{problem:True})
         return 'UNCERTAIN', 'review broken'
     monkeypatch.setattr(agent, '_critique_answer', review)
-    assert agent._recover_answer('task', 'task', 'original', None, Trace('id','task'), None, '') == 'original'
+    assert agent._recover_answer('task', 'task', 'original', None, Trace('id','task'), None, '') == 'Unable to verify answer'
 
 
 def test_format_repair_is_separate_from_factual_review(monkeypatch):

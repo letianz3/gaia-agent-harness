@@ -45,3 +45,18 @@ def test_no_incumbent_privilege_and_no_unsupported_pass():
     assert select_verified({'candidates':[dict(uncertain,id='A'),dict(uncertain,id='B')]},p) is None
     assert select_verified({'candidates':[dict(supported,id='A'),dict(supported,id='B')]},p) is None
     assert select_verified({'candidates':[dict(uncertain,id='A'),dict(id='B',verdict='PASS',support=[])]},p) is None
+
+
+def test_navigation_is_bounded_and_not_factual_support():
+    from gaia_agent.verification import navigation_evidence
+    from gaia_agent.tracing import Trace
+    trace=Trace('test','Which chapter mentions velocity?')
+    for i in range(4):trace.add('tool_call',name='fetch_url',succeeded=True,result=f'SOURCE: https://example.org/{i}\nvelocity chapter')
+    class Registry:
+        calls=0
+        def execute(self,name,args):
+            self.calls+=1
+            return 'SOURCE: https://example.org/parent\nBook index\nNAVIGATION LINKS (discovery only, not factual evidence):\n'+json.dumps([['Answer SECRET','https://example.org/chapter']]*20),True
+    registry=Registry();notes=json.loads(navigation_evidence(registry,trace,trace.question))
+    assert registry.calls==2 and len(notes)==2 and len(notes[0]['links'])==12
+    assert 'SECRET' not in evidence_packet(trace.events,focus=(trace.question,'SECRET'))

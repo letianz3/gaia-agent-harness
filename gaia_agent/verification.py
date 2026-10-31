@@ -1,8 +1,34 @@
 """Evidence-based comparison: solver chronology never establishes correctness."""
 import json
+import re
 from .evidence import has_valid_support,read_json_object
 
 UNVERIFIED='Unable to verify answer'
+
+
+def navigation_evidence(registry,trace,question):
+    """At most two real source pages; navigation never masquerades as proof."""
+    if registry is None:return ''
+    terms=set(re.findall(r'[\w-]{4,}',question.casefold()))
+    pages={}
+    for event in trace.events:
+        raw=event.get('result','')
+        if event.get('name')=='fetch_url' and event.get('succeeded') and raw.startswith('SOURCE: '):
+            url=raw.split('\n',1)[0][8:]
+            if '.pdf' in url.lower() or '/pdf/' in url.lower():continue
+            pages[url]=sum(t in raw.casefold() for t in terms)
+    notes=[]
+    for url in sorted(pages,key=pages.get,reverse=True)[:2]:
+        args=json.dumps({'url':url,'link_query':question})
+        raw,ok=registry.execute('fetch_url',args)
+        trace.record_tool_call()
+        trace.add('tool_call',name='fetch_url',arguments=args,result=raw,succeeded=ok,phase='bounded_source_navigation')
+        marker='NAVIGATION LINKS (discovery only, not factual evidence):\n'
+        if ok and marker in raw:
+            try:links=json.loads(raw.split(marker,1)[1])[:12]
+            except ValueError:continue
+            notes.append({'source':url,'links':links})
+    return json.dumps(notes,ensure_ascii=False)
 
 
 def select_verified(report,evidence):

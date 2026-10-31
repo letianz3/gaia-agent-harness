@@ -184,9 +184,9 @@ def fetch_url(url: str, link_query: str | None = None) -> str:
     for tag in soup(["script", "style", "noscript", "svg"]):
         tag.decompose()
     text = "\n".join(line.strip() for line in soup.get_text("\n").splitlines() if line.strip())
-    if any(marker in text.lower()[:1500] for marker in (
+    if urlparse(url).hostname == 'validate.perfdrive.com' or any(marker in text.lower()[:1500] for marker in (
         'verify you are human', 'checking your browser', 'enable javascript and cookies',
-        'performing security verification')):
+        'performing security verification', 'please enable javascript to continue', 'verifying your browser')):
         raise ValueError("Blocked by website challenge; no factual page evidence retrieved")
     links=''
     if link_query:
@@ -197,7 +197,11 @@ def fetch_url(url: str, link_query: str | None = None) -> str:
             if href.startswith(('http://','https://')):
                 candidates.append((label,href))
         candidates=list(dict.fromkeys(candidates))
-        candidates.sort(key=lambda pair:link_query.casefold() not in (' '.join(pair)).casefold())
+        terms=set(re.findall(r'[\w.-]{3,}',link_query.casefold()))-{'the','and','from','what','that','this','with'}
+        def relevance(pair):
+            label,href=pair;value=(label+' '+href).casefold()
+            return 100*(link_query.casefold() in value)+sum(t in value for t in terms)+3*bool(re.search(r'\.pdf(?:$|\?)|/pdf/|download.*pdf',value))
+        candidates.sort(key=relevance,reverse=True)
         links='\nNAVIGATION LINKS (discovery only, not factual evidence):\n'+json.dumps(candidates[:60],ensure_ascii=False)
     return f"SOURCE: {url}\n{text[:30_000]}{links}"
 

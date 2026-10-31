@@ -48,7 +48,7 @@ def evidence_packet(events, start_index=0, budget=8000, focus=()):
                   and e.get('type') == 'tool_call' and e.get('succeeded'))]
     prepared={}
     for i,event in candidates:
-        value=str(event.get('result',''))
+        value=str(event.get('result','')).split('\nNAVIGATION LINKS',1)[0]
         limit=4000 if event.get('type')=='input_evidence' else 1800 if focus else 1400
         if focus and event.get('type')!='input_evidence' and event.get('name')!='search_web':
             prepared[i]=relevant_excerpt(value,focus,limit)

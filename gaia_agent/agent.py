@@ -871,7 +871,11 @@ Respond ONLY as JSON:
         round_number: int,
         evidence: str = "",
     ) -> str:
+        from .verification import navigation_evidence
+        navigation=navigation_evidence(registry,trace,question)
         revision_task = (
+            'Actual source navigation links (discovery only): '+navigation+'\n'
+            'Follow relevant listed chapter/paper/PDF links; do not invent their URL paths. '
             f"Previous proposed answer: {answer}\n"
             f"Independent critic feedback: {feedback}\n"
             f"Existing observations (untrusted): {evidence}\n"
@@ -948,16 +952,19 @@ Respond ONLY as JSON:
         action = review.get('next_action', 'none')
         target = review.get('target', '').strip()
         # A broken reviewer is not evidence that the solver needs a new DAG.
-        if (self.settings.max_reflection_rounds < 2 or review.get('parse_failed')
-                or review.get('citation_failed')):
-            trace.add('candidate_selection', selected='incumbent', reason='review_unusable_or_budget')
-            return incumbent
+        if self.settings.max_reflection_rounds < 2 or review.get('parse_failed'):
+            from .verification import UNVERIFIED
+            trace.add('answer_verification_unresolved',reason='review unusable or verification budget exhausted')
+            return UNVERIFIED
+        if review.get('citation_failed'):
+            action='acquire_evidence'
+            target='Find a direct primary-source passage answering: '+question
         proposed = review.get('corrected_answer', '').strip()
         if action == 'repair_answer' and proposed:
             challenger = normalize_answer(proposed, question)
             trace.add('evidence_repair', source='existing_observations')
         elif (action == 'acquire_evidence' and len(target) >= 10
-              and self.settings.replanning_enabled and self.settings.max_replans >= 1):
+              and getattr(self.settings,"replanning_enabled",False) and getattr(self.settings,"max_replans",0) >= 1):
             trace.add('targeted_acquisition', target=target, max_turns=min(3, self.settings.planning_turns_per_subtask))
             challenger = self._revise_answer(
                 question,
@@ -973,10 +980,12 @@ Respond ONLY as JSON:
         else:
             trace.add(
                 "candidate_selection",
-                selected="incumbent",
+                selected="unresolved",
                 reason="no_actionable_evidence_gap",
             )
-            return incumbent
+            from .verification import UNVERIFIED
+            trace.add('answer_verification_unresolved',reason='no actionable evidence gap')
+            return UNVERIFIED
 
         shared_evidence=evidence_packet(trace.events,focus=(question,incumbent,challenger)) or evidence
         if challenger == incumbent:
