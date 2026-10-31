@@ -84,6 +84,14 @@ def temporal_source_conflict(raw, year):
     return not bool(dated_section or reverse_section)
 
 
+def validate_name_bridge(row, events):
+    quotes=validate_support(row.get('name_support'),events)
+    native=re.sub(r'\s+','',row['native_name']).casefold()
+    roman=row['surname'].casefold()
+    if not any(native in re.sub(r'\s+','',q) and roman in q for q in quotes):
+        raise ValueError('one bilingual quotation must join the full original name and Roman surname')
+
+
 def temporal_neighbors(report, year, events, *, check_names=True):
     # Links can discover archives but their labels cannot establish roster facts.
     events=[dict(e,result=e.get('result','').split('\nNAVIGATION LINKS',1)[0]) for e in events]
@@ -103,10 +111,10 @@ def temporal_neighbors(report, year, events, *, check_names=True):
         if type(n) is not int or n in by_number or not isinstance(surname,str) or not surname.strip():raise ValueError('invalid roster row')
         native=row.get('native_name')
         if native and native != surname:
-            validate_support([{'source_url':source,'quote':quote}],events,[native])
+            validate_support([{'source_url':source,'quote':quote}],events,[native],min_quote_length=6)
             # A translation is an identity join, not permission to invent a name.
             if check_names:
-                validate_support(row.get('name_support'),events,[native,surname])
+                validate_name_bridge(row,events)
         else:
             validate_support([{'source_url':source,'quote':quote}],events,[surname])
         if not re.search(r'(?<!\d)'+str(n)+r'(?!\d)',quote):raise ValueError('number missing from row evidence')
@@ -119,14 +127,26 @@ def temporal_neighbors(report, year, events, *, check_names=True):
 def resolve_roster_names(agent, report, registry, trace):
     """Resolve only name rendering after historical row provenance has passed."""
     from .contracts import ask_json
+    identities=ask_json(agent,'Extract the FULL ORIGINAL-SCRIPT PERSON NAME from each literal roster row. '
+        'Do not return only a surname, translate, add characters or return a role label. '
+        'Return {"names":[{"number":integer,"native_name":"exact full name from row"}]}. Rows: '+
+        json.dumps([{'number':r['number'],'quote':r['quote']} for r in report['rows']],ensure_ascii=False),trace)
+    names=identities.get('names',[])
+    if isinstance(names,list):
+        for item in names:
+            if not isinstance(item,dict):continue
+            for row in report['rows']:
+                value=item.get('native_name')
+                if row['number']==item.get('number') and isinstance(value,str) and len(value)>1 and value in row['quote']:
+                    row['native_name']=value
     for row in report['rows']:
         native=row.get('native_name');surname=row.get('surname')
         if not native or native==surname:continue
         try:
-            validate_support(row.get('name_support'),trace.events,[native,surname])
+            validate_name_bridge(row,trace.events)
             continue
         except ValueError:pass
-        args=json.dumps({'query':f'"{native}" "{surname}" biography'})
+        args=json.dumps({'query':f'"{native}" "{surname}"'})
         raw,ok=registry.execute('search_web',args)
         trace.record_tool_call()
         trace.add('tool_call',name='search_web',arguments=args,result=raw,succeeded=ok,phase='identity_bridge')
@@ -190,7 +210,7 @@ def solve_temporal_neighbors(agent,question,registry,trace):
         'Return ONLY JSON {"year":integer,"source_url":"fetched URL","time_quote":"literal heading or dated statement establishing roster period, not copyright",'
         '"target_number":integer,"rows":[{"number":integer,"surname":"Roman surname",'
         '"eligible":true,"quote":"literal source row containing number and original name",'
-        '"native_name":"original-script surname if different from Roman surname",'
+        '"native_name":"FULL original-script person name if different from Roman surname",'
         '"name_support":[{"source_url":"fetched bilingual profile URL","quote":"literal text linking original and Roman names"}]}]}. '
         'Include target and exact numeric neighbors; do not calculate final answer. '
         'Rows must come from the SAME dated roster. Preserve original text in quotes. '

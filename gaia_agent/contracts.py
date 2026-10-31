@@ -43,7 +43,7 @@ def evidence_windows(body, query, limit=5):
     return [quote for _, quote in selected]
 
 
-def validate_support(support, events, required_names=()):
+def validate_support(support, events, required_names=(), *, min_quote_length=12):
     """Require quotations from actual retrieved bodies and a join-key mention."""
     if not isinstance(support,list) or not support:
         raise ValueError('missing direct evidence')
@@ -52,7 +52,7 @@ def validate_support(support, events, required_names=()):
         if not isinstance(claim,dict):
             raise ValueError('invalid evidence reference')
         source=claim.get('source_url',''); quote=claim.get('quote','')
-        if not isinstance(quote,str) or len(quote)<12 or not isinstance(source,str) or not source.startswith(('http://','https://')):
+        if not isinstance(quote,str) or len(quote)<min_quote_length or not isinstance(source,str) or not source.startswith(('http://','https://')):
             raise ValueError('invalid source or quotation')
         matches=[e for e in events if e.get('type')=='tool_call' and e.get('succeeded')
                  and e.get('name')=='fetch_url' and e.get('result','').startswith('SOURCE: '+source+'\n')]
