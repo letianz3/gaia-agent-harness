@@ -1110,6 +1110,11 @@ Respond ONLY as JSON:
                 evidence,
             )
 
+        from .answer_rendering import render_final_answer
+        rendered = render_final_answer(question, answer)
+        if rendered != answer:
+            trace.add('final_rendering', original=answer, rendered=rendered, scope='format only; no new facts')
+            answer = rendered
         incomplete = any(e['type'] in ('entity_chain_blocked', 'table_contract_blocked', 'temporal_contract_blocked', 'answer_verification_unresolved') for e in trace.events)
         trace.add('run_finished', status='INCOMPLETE' if incomplete else 'COMPLETED', **self.gateway.stats())
         trace.save(self.settings.runs_dir / task_id / "trace.json", answer)
