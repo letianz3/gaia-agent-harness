@@ -609,3 +609,97 @@ was correct in both final fresh runs, but its token cost still varied substantia
 All 129 local tests pass after the final renderer, including synthetic negative
 cases; local tests establish implementation checks, not benchmark correctness or
 generalization. R12 remains an experimental branch, with earlier versions retained.
+
+## R13: structured repair and deterministic decision composition
+
+The next experiment targets failure mechanisms, not task IDs or stored answers:
+
+- Classification schema repair preserves structurally valid fields from the first
+  report and fills missing/invalid fields from a bounded repair. Changed exclusion
+  order cannot silently reinterpret boolean flags. Input inventory, source text
+  and properties remain validated. An unconditional whole-list model audit was
+  removed; this reduces rewriting opportunities but can also retain a semantic
+  error in the first report. Structure validation is not a truth check.
+- Valid explicit exclusion flags short-circuit irrelevant optional property
+  checks. Other items still require policy properties; missing fields are not
+  invented by code. Exclusion interpretation remains model-dependent.
+- Video census separates life stage from species identity. Code normalizes spaces,
+  underscores and explicit stage suffixes/parentheses, without stemming names or
+  merging different taxa by resemblance. Visual recognition and frame selection
+  are still model-dependent; a correct count can coexist with a wrong species label.
+- Candidate adjudication computes its verdict from three structured checks:
+  task constraints, source identity and answer value. Missing/invalid checks cannot
+  pass; a failed check overrides an aggregate PASS. Code does not prove the model's
+  individual judgments true. Two evidence-supported candidates with the same
+  deterministically rendered requested value are equivalent, not an unresolved
+  conflict; different values still need a unique supported candidate.
+- Historical processing now reports the first failed stage (provenance, numeric
+  neighbors, identity), rather than masking it with a later name-check failure.
+  Retrieval constraints and evidence requirements are not relaxed.
+
+The first fresh full run, `full_20261031T035934Z` at runtime `9159a5a`, scored
+**16/20**. The video count was correct. Remaining failures exposed (1) irrelevant
+properties blocking already-excluded list items, (2) equivalent supported numeric
+answers rejected as a tie, (3) contradictory aggregate review verdicts, and
+(4) unresolved historical evidence with a misleading subsequent error. The
+follow-up implementation addresses these mechanisms; the failed run is retained.
+
+The second fresh full run, `full_20261031T040701Z` at runtime `579275d`, scored
+**18/20**. Video, list classification and the numeric-statistics task were correct.
+The list initially had an invalid exclusion phrase; local repair preserved its
+useful classifications and produced the correct list. Funding and historical
+evidence remained unresolved. The funding source had been fetched but returned
+only its first 30,000 text characters. Historical reports rearranged observed
+number/name records into nonliteral quotations, sometimes adding a role heading
+inside each row. Code correctly rejected these fabricated quotations.
+
+The final runtime `c1e4e71` addresses those data-transfer losses. Long HTML text
+keeps its beginning, tail and bounded original passages matching a navigation
+query, still within 30,000 characters. Numbered-record materialization copies
+only an actually fetched, uniquely matching identifier-line/name-line span; it
+cannot invent a missing number, name, role or bilingual identity. A dated original
+document title can replace a paraphrased heading, but all later historical and
+identity checks still apply. Offline replay repaired two observed roster reports;
+an unfetched/fabricated report still failed. This is validation replay, not a new
+benchmark score. The historical strategy still assumes the model selected a
+relevant roster and eligible role; a date in a title alone is not full temporal
+entailment. All 142 local tests pass at this runtime.
+
+### R13 frozen results and remaining failures
+
+| Runtime | Run | Official score | Chat tokens |
+| --- | --- | --- | --- |
+| `9159a5a` | `full_20261031T035934Z` | 16/20 | 581,933 |
+| `579275d` | `full_20261031T040701Z` | 18/20 | 696,152 |
+| `c1e4e71` | `full_20261031T041347Z` | **19/20** | 517,432 |
+| `c1e4e71` | `full_20261031T041905Z` | **19/20** | 559,916 |
+
+The last two runs used identical runtime source, gpt-4.1-mini and fresh per-run
+caches. Both executed and submitted all 20 answers. These are fresh official
+scores, not formatting re-scores or combinations of correct answers. Total chat
+usage for the four R13 runs was 2,355,433 tokens, excluding audio transcription.
+Two equal scores do not establish a guaranteed score floor or identical behavior.
+
+The historical task failed in the first frozen run. Retrieval selected a different
+page with labelled rows rather than the supported adjacent number/name layout;
+the model still reconstructed nonliteral quotes and subsequently tried a current
+roster, which the date contract rejected. The second frozen run answered it
+correctly. Generic structured-table extraction and preserving useful historical
+sources during repair remain better next steps than weakening date checks.
+
+The second frozen run failed the Olympic minimum-count/tie task. The initial
+candidate was CUB; the critic requested fuller coverage of tied countries. The
+challenger was DEN. The comparison then marked both FAIL, even while its own
+feedback described Cuba as having 1 athlete and Denmark as having 91. Structured
+check aggregation prevents an overall verdict from contradicting sub-verdicts,
+but cannot fix a semantically wrong sub-verdict. A future general ranking contract
+should validate a complete observed collection, compute numeric minima and
+alphabetical ties in code, then verify the selected entity/code mapping. Merely
+comparing two candidate values is insufficient to prove the global minimum.
+
+Video count, botanical classification, numeric-statistics output and paper funding
+were correct in both frozen runs. These are encouraging repeated development-set
+observations, not a controlled ablation or held-out result. No new model upgrade,
+task-ID branch, benchmark answer constant or entity-specific URL was added.
+The current conclusion is **two fresh 19/20 runs with different failures; stable
+20/20 has not been achieved**. Earlier checkpoints and failed trials are retained.

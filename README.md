@@ -45,6 +45,8 @@ are retained in Git, without mixing answers across runs.
 | R12 development · `c6d031a` → `8a18211` | 16 → 19 → 17 → 19 → 17/20 | See evaluation | Join historical native-language records to full identities; copy evidence spans in code, fetch unread leads and retain count/date scope. | Gains and regressions retained; search and verification remain variable. |
 | R12 frozen · `4f4e27d` | **19/20, 18/20** | 363,744 / 496,625 | Preserve simple HTML table column labels; freeze runtime for two fresh full runs. | Historical target correct in both; answer formatting, list fallback and species identity caused remaining failures. |
 | R12 output rendering · `b47a355` | **20/20*, 18/20*** | Same as above | Render an unambiguous requested numeric count only after reasoning finishes. | Re-score both complete frozen answer sets; no new model calls or mixed answers. First perfect score, not stable 20/20. |
+| R13 development · `9159a5a` → `579275d` | 16 → 18/20 | 581,933 / 696,152 | Preserve valid classification fields, short-circuit exclusions, separate age from species, and aggregate explicit verification checks in code. | Targets improved; historical quotation fidelity and missing long-page passages still failed. |
+| R13 frozen · `c1e4e71` | **19/20, 19/20** | 517,432 / 559,916 | Copy observed numbered records and retain long-document tails/query passages. | Two fresh full runs: historical roster failed once; Olympic minimum/tie selection failed once. Video, botanical list, numeric formatting and funding passed both. Not stable 20/20. |
 
 R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
 recipe wording and chess perception-to-engine execution. The actor answer also
