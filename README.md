@@ -53,6 +53,9 @@ stability checks. Source identity and historical retrieval remain limitations.
 R9 passes 103 local tests, including negative routing cases and reuse of the
 property executor for a non-botanical domain. It is a fresh 18/20 run; chat tokens
 rose 27.3% versus R8, mainly in historical and funding retrieval.
+R9 also reproduces R8's correct video and botanical-list answers in a fresh full
+run. This supports the earlier repairs' repeatability across these two runs;
+other web answers still fluctuate, so overall answer stability is not established.
 See [code-owned contracts](CONTRACTS.md) and [evaluation details](EVALUATION.md).
 Token totals exclude audio transcription. R0 is preserved as a local source
 snapshot. Stable tags preserve R1/R4/R5, and

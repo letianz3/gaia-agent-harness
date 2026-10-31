@@ -19,6 +19,14 @@ variation to the policy refactor. Tokens increased 27.3%: historical retrieval
 rose from 58,567 to 111,012 and funding retrieval from 33,970 to 79,463. This is
 not a cost-efficiency improvement.
 
+Repeatability check: the fresh R8 and R9 runs both returned `3` for the video
+species task and the same correct five-item botanical list. R8b's format re-score
+is not counted as another independent trial. These repeated target successes
+support the earlier evidence-resolution repairs; two runs with a subsequent
+refactor do not estimate a stable success rate or isolate a causal effect.
+Chemistry and funding outputs still changed, so equal overall scores do not mean
+the entire answer set is stable.
+
 The new non-GAIA smoke set is `scripts/run_behavior_smoke.py`, with raw outputs
 in local run `behavior_20261031T011854Z`. Arithmetic, version ordering, material
 classification, culinary classification, dated reading and explicit exclusions
