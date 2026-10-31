@@ -62,35 +62,54 @@ def census_count(report, timestamps):
     return max(counts)
 
 
+CENSUS_CANDIDATES_PER_SHEET = 2
+CENSUS_FRAMES_PER_CALL = 6
+
+
 def inspect_census(agent, question, sheets, video_path, media_dir, trace):
+    """Locate candidate frames, then inventory each frame independently in small batches.
+
+    Recall of small or background species depends on which frames are inspected,
+    so each sheet nominates up to two distinct candidates; precision is kept by
+    requiring identity, visible features and location per group in every frame.
+    """
     from .media_tools import video_detail_frames
     times=[]
     for sheet in sheets[:6]:
         proposal=read_json_object(agent._vision_observation(
-        'Locate ONE frame on THIS sheet with the most DISTINCT species and ambiguous overlaps. '
+        'Locate up to TWO frames on THIS sheet with the most DISTINCT species, preferring frames that differ '
+        'in which species are visible, including small or background birds. '
         'Do not count all members of a broad animal group as one species; age/sex differences '
         'alone do not establish separate species. Return JSON {"timestamps":[seconds],"reason":"visible differences"}. '
         'Use timestamps printed on the sheet. Inspect every cell before choosing. Task: '+question,[sheet],trace,'video_census_scan',json_output=True))
         candidates=proposal.get('timestamps',[])
-        if isinstance(candidates,list):times.extend(candidates[:1])
-    if not isinstance(times,list) or not times:raise ValueError('candidate timestamps missing')
-    frames=video_detail_frames(video_path,media_dir,times[:6])
-    stamps=[t for t,_ in frames]
-    report=read_json_object(agent._vision_observation(
-        'Inspect each individual frame independently. Inventory DISTINCT species visible simultaneously, '
-        'including small background individuals. Use the same species_key for adults/chicks of the '
-        'same species; different species within a broad group need separate keys and distinguishing '
-        'features. Do not merge solely because both are penguins, ducks, gulls, etc. Do not add '
-        'species merely heard or seen in another frame. Return JSON {"frames":[{"timestamp":number,'
-        '"groups":[{"species_key":"canonical species name ONLY, never age/sex/individual ID","life_stage":"adult/chick/juvenile/unknown",'
-        '"visual_features":"visible distinguishing traits",'
-        '"location":"where in this frame","uncertain":false}]}]}. '
-        'Mark uncertain true when identities cannot be separated. Do not output a count. '
-        'Image timestamps, in order: '+json.dumps(stamps)+' Task: '+question,
-        [p for _,p in frames],trace,'video_census_detail',json_output=True))
-    count=census_count(report,stamps)
-    trace.add('video_census_validated',report=report,maximum=count,scope='sampled-frame counts; species identities remain visual-model judgments')
-    return json.dumps({'maximum_observed_species':count,'frames':report['frames'],
+        if isinstance(candidates,list):
+            times.extend(t for t in candidates[:CENSUS_CANDIDATES_PER_SHEET] if isinstance(t,(int,float)))
+    times=sorted(set(times))
+    if not times:raise ValueError('candidate timestamps missing')
+    frames=video_detail_frames(video_path,media_dir,times,limit=CENSUS_CANDIDATES_PER_SHEET*6)
+    reports=[]
+    for start in range(0,len(frames),CENSUS_FRAMES_PER_CALL):
+        batch=frames[start:start+CENSUS_FRAMES_PER_CALL]
+        stamps=[t for t,_ in batch]
+        report=read_json_object(agent._vision_observation(
+            'Inspect each individual frame independently. Inventory DISTINCT species visible simultaneously, '
+            'including small background individuals. Use the same species_key for adults/chicks of the '
+            'same species; different species within a broad group need separate keys and distinguishing '
+            'features. Do not merge solely because both are penguins, ducks, gulls, etc. Do not add '
+            'species merely heard or seen in another frame. Return JSON {"frames":[{"timestamp":number,'
+            '"groups":[{"species_key":"canonical species name ONLY, never age/sex/individual ID","life_stage":"adult/chick/juvenile/unknown",'
+            '"visual_features":"visible distinguishing traits",'
+            '"location":"where in this frame","uncertain":false}]}]}. '
+            'Mark uncertain true when identities cannot be separated. Do not output a count. '
+            'Image timestamps, in order: '+json.dumps(stamps)+' Task: '+question,
+            [p for _,p in batch],trace,'video_census_detail',json_output=True))
+        census_count(report,stamps)  # validate every batch on its own timestamps
+        reports.extend(report['frames'])
+    merged={'frames':reports}
+    count=census_count(merged,[t for t,_ in frames])
+    trace.add('video_census_validated',report=merged,maximum=count,scope='sampled-frame counts; species identities remain visual-model judgments')
+    return json.dumps({'maximum_observed_species':count,'frames':merged['frames'],
                        'limitation':'sampled frames only; not an exhaustive proof of the whole-video maximum'},ensure_ascii=False)
 
 

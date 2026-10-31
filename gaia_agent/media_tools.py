@@ -148,7 +148,7 @@ def sample_video_contact_sheets(
     return paths
 
 
-def video_detail_frames(video_path, output_dir, timestamps):
+def video_detail_frames(video_path, output_dir, timestamps, limit=6):
     """Bounded individual frames: keep native detail instead of a thumbnail sheet."""
     import cv2
     capture=cv2.VideoCapture(str(video_path))
@@ -157,7 +157,7 @@ def video_detail_frames(video_path, output_dir, timestamps):
         fps=capture.get(cv2.CAP_PROP_FPS)
         duration=capture.get(cv2.CAP_PROP_FRAME_COUNT)/fps if fps>0 else 0
         if duration<=0: raise ValueError('invalid video duration')
-        timestamps=coverage_times(timestamps,duration)
+        timestamps=coverage_times(timestamps,duration,limit)
         for i,t in enumerate(timestamps):
             if not isinstance(t,(float,int)) or isinstance(t,bool) or not math.isfinite(t) or not 0<=t<duration:
                 continue
