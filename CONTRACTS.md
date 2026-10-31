@@ -124,9 +124,30 @@ When a historical-roster report establishes a valid dated source but fails only
 row provenance, repair keeps that source (`dated_source_valid`) and shows its
 literal rows; the repair prompt no longer forbids citing already-fetched pages.
 
-`ranking.py` applies only to an explicit superlative plus an explicit
-alphabetical tie rule. The model chooses an observed complete table and the
-entity/value/answer/tie-key column indices; code drops blank or aggregate rows,
-requires mostly numeric values, computes the extremum and tie order, and decides
-before the prose critic or pairwise comparison. Table and column semantics remain
-a model choice recorded in `ranking_contract_validated`.
+`table_queries.py` generalizes this to any answer computable from one complete observed
+table: min/max (with an explicit tie rule), count, sum, or the value of the single
+row matching filters. There is no question regex: the model either writes a query
+spec (table, operation, column indices, filters that each quote the question
+phrase they implement, tie rule) or declares it not applicable. Code validates
+the spec, ignores blank/aggregate rows, refuses mostly non-numeric value columns
+and unbroken ties, and executes it. Agreement with the solver settles the answer.
+Disagreement changes the answer only after an independent review of the SPEC's
+semantics (scope, column meaning, every bound) passes; code still does the
+counting and ranking. A failed review leaves the ordinary critic path in charge.
+
+## Verification and decision layers
+
+`agent._recover_answer` runs fixed stages: explicit format repair, computable
+answers (above), independent evidence critique, one targeted acquisition or an
+evidence-backed correction, the computation stage again on enlarged evidence, then
+candidate comparison. `decision.py` separates answer selection from confidence:
+unresolved verification is recorded (`answer_verification_unresolved`, run status
+INCOMPLETE) and the answer is the candidate favoured by the structured comparison
+checks (PASS 1, UNCERTAIN 0, FAIL -2), incumbent on ties, abstention strings never
+preferred. `AGENT_ABSTAIN_ON_UNVERIFIED=true` restores strict abstention.
+
+Contract strategies no longer abstain when blocked. The table-sum and entity-chain
+contracts defer to the general pipeline. The historical-roster contract returns its
+least severe rejected candidate only when the dated source itself was verified and
+only quotation/name-bridge provenance remained unresolved; role, neighbor and
+period failures fall through to the general pipeline.

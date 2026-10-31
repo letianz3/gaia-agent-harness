@@ -236,9 +236,10 @@ class BaselineAgent:
                 trace.add("video_audio", result=audio_note[:10000], usage_accounted=False)
             except Exception as exc:
                 audio_note = f"Audio unavailable: {type(exc).__name__}. Dialogue cannot be verified from frames."
-        video_path = download_youtube_video(
+        from .media_tools import decodable_video
+        video_path = decodable_video(download_youtube_video(
             f"https://www.youtube.com/watch?v={video_id}", media_dir
-        )
+        ))
         sheets = sample_video_contact_sheets(
             video_path, media_dir, timestamps_seconds
         )
@@ -968,10 +969,10 @@ Respond ONLY as JSON:
         Unresolved verification is reported in the trace; answer selection is
         delegated to decision.unresolved (best supported candidate by default).
         """
-        from .decision import unresolved
+        from .decision import is_abstention, submission_value, unresolved
         from .verification import compare_answers, fetch_search_only_sources
 
-        incumbent = answer
+        incumbent = normalize_answer(submission_value(self, question, answer, trace, 'incumbent'), question)
         fetch_search_only_sources(registry, trace)
         evidence = evidence_packet(trace.events, focus=(question, incumbent)) or evidence
         trace.add('verification_evidence', candidates=[incumbent], packet=evidence)
@@ -1012,12 +1013,17 @@ Respond ONLY as JSON:
             trace.add("candidate_selection", selected="unresolved", reason="no_actionable_evidence_gap")
             return unresolved(self, trace, 'no actionable evidence gap', incumbent)
 
+        challenger = normalize_answer(submission_value(self, question, challenger, trace, 'challenger'), question)
         fetch_search_only_sources(registry, trace)
         # Acquisition may have observed the complete collection the first check lacked.
         computed = self._computed_answer(question, incumbent, trace)
         if computed is not None:
             return computed
         shared_evidence = evidence_packet(trace.events, focus=(question, incumbent, challenger)) or evidence
+        if is_abstention(challenger) and not is_abstention(incumbent):
+            # "Cannot determine" or "no such thing exists" is not a competing value.
+            trace.add('candidate_selection', selected='incumbent_pending_review', reason='challenger abstained')
+            challenger = incumbent
         if challenger == incumbent:
             # New observations may now verify an unchanged answer; agreement is not proof.
             verdict, _ = self._critique_answer(question, incumbent, shared_evidence, trace, 2)

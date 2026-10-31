@@ -148,3 +148,48 @@ def test_unresolved_selection_prefers_supported_non_abstaining_candidates():
     assert unresolved(SimpleNamespace(settings=SimpleNamespace(abstain_on_unverified=True)), trace, 'r', 'X') == UNVERIFIED
     assert sum(e['type'] == 'answer_verification_unresolved' for e in trace.events) == 4
     assert is_abstention('Unable to verify answer') and not is_abstention('Uehara')
+
+
+@pytest.mark.parametrize('text,prose', [
+    ('FunkMonk', False), ('Mt. Rainier', False), ('St. Petersburg', False),
+    ('acorns, bell pepper, broccoli, celery, fresh basil, green beans, lettuce, sweet potatoes, zucchini', False),
+    ('The article was promoted in July. Therefore there was no nominator.', True),
+    ('There was no dinosaur article promoted in that month at all.', True),
+    ('Answer:\nFunkMonk', True),
+])
+def test_prose_detection_is_structural(text, prose):
+    from gaia_agent.decision import looks_like_prose
+    assert looks_like_prose(text) is prose
+
+
+def test_prose_reduces_to_a_literal_value_or_to_an_abstention():
+    from gaia_agent.decision import submission_value
+    prose = ('The dinosaur article "Giganotosaurus" was nominated by FunkMonk. '
+             'Hence the nominator is FunkMonk.')
+    trace = Trace('t', 'q')
+    agent = SimpleNamespace(_plain_completion=scripted({'answer': 'FunkMonk'}))
+    assert submission_value(agent, 'Who nominated it?', prose, trace, 'challenger') == 'FunkMonk'
+    agent = SimpleNamespace(_plain_completion=scripted({'answer': 'Sasquatch'}))  # not in the text
+    assert submission_value(agent, 'Who nominated it?', prose, trace, 'challenger') == UNVERIFIED
+    denial = 'There was no such article in that month. Therefore no nominator exists.'
+    agent = SimpleNamespace(_plain_completion=scripted({'answer': None}))
+    assert submission_value(agent, 'Who nominated it?', denial, trace, 'challenger') == UNVERIFIED
+
+
+def test_abstaining_challenger_cannot_replace_a_concrete_incumbent(monkeypatch):
+    """Replays R14b run 1: a revision concluded 'no such article exists' against FunkMonk."""
+    from gaia_agent.agent import BaselineAgent
+    agent = object.__new__(BaselineAgent)
+    agent.settings = SimpleNamespace(max_reflection_rounds=2, replanning_enabled=True, max_replans=1,
+                                     planning_turns_per_subtask=6, specialized_workflows_enabled=False)
+    verdicts = iter([('FAIL', 'date mismatch'), ('UNCERTAIN', 'still unclear')])
+    def critique(*args):
+        args[3].add('critique', next_action='acquire_evidence', target='Fetch the November 2016 promotion log')
+        return next(verdicts)
+    monkeypatch.setattr(agent, '_critique_answer', critique)
+    monkeypatch.setattr(agent, '_revise_answer', lambda *a: 'There was no dinosaur article promoted then. So nobody nominated one.')
+    monkeypatch.setattr(agent, '_plain_completion', scripted({'answer': None}))
+    monkeypatch.setattr(agent, '_completion', lambda *a, **k: pytest.fail('no comparison needed'))
+    trace = Trace('t', 'Who nominated the only Featured Article about a dinosaur promoted in November 2016?')
+    assert agent._recover_answer(trace.question, trace.question, 'FunkMonk', None, trace, None, '') == 'FunkMonk'
+    assert any(e['type'] == 'best_effort_selection' and e['answer'] == 'FunkMonk' for e in trace.events)

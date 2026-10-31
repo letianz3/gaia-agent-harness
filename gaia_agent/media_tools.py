@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,31 @@ def download_youtube_audio(url: str, output_dir: Path) -> Path:
     if not path.is_file() or path.stat().st_size > 24000000:
         raise ValueError('audio unavailable or exceeds transcription upload limit')
     return path
+
+
+def decodable_video(video_path: Path) -> Path:
+    """Return a path OpenCV can decode, transcoding once to H.264 when needed.
+
+    YouTube increasingly serves AV1; OpenCV builds without an AV1 decoder open
+    the container but return no frames. ffmpeg (libdav1d) usually can decode it.
+    """
+    import cv2
+
+    capture = cv2.VideoCapture(str(video_path))
+    try:
+        if capture.isOpened() and capture.read()[0]:
+            return video_path
+    finally:
+        capture.release()
+    converted = video_path.with_name(video_path.stem + "_h264.mp4")
+    if not converted.exists():
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            raise ValueError("video codec is not decodable and ffmpeg is unavailable for transcoding")
+        import subprocess
+        subprocess.run([ffmpeg, "-v", "error", "-y", "-i", str(video_path), "-an", "-c:v", "libx264",
+                        "-preset", "veryfast", "-crf", "23", str(converted)], check=True, timeout=600)
+    return converted
 
 
 def sample_video_contact_sheets(

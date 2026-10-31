@@ -43,3 +43,39 @@ def unresolved(agent, trace, reason, incumbent, challenger=None, report=None):
     trace.add('best_effort_selection', selected=key, answer=value, scores=scores,
               scope='unverified; selected by structured check scores, incumbent on ties')
     return value
+
+
+_SENTENCES = re.compile(r'[a-z]{3,}[.!?]["\')\]]?\s+[A-Z]')  # "Mt. Rainier" is not two sentences
+_PROSE_OPENING = re.compile(r'^(?:the|there|it|this|i|based|according|after|unfortunately|no)\b', re.I)
+
+
+def looks_like_prose(answer):
+    """Sentence structure, not length: long comma lists are legitimate submissions."""
+    text = str(answer or '').strip()
+    words = len(text.split())
+    return ('\n' in text or bool(_SENTENCES.search(text))
+            or (words >= 8 and bool(_PROSE_OPENING.match(text)) and text.endswith(('.', '!'))))
+
+
+def submission_value(agent, question, candidate, trace, role):
+    """Reduce a prose candidate to the value it commits to, or to an abstention.
+
+    The extracted value must occur in the candidate text (extraction, not new
+    reasoning). Text that says the answer is unavailable or does not exist
+    becomes UNVERIFIED, so it can never outrank a concrete candidate.
+    """
+    if is_abstention(candidate) or not looks_like_prose(candidate):
+        return candidate
+    from .contracts import ask_json
+    from .contracts import normalize_text
+    report = ask_json(agent, 'A research step answered an exact-match question in prose. Return JSON '
+                      '{"answer": "the exact submission value the text commits to, in the format the question '
+                      'requests" or null}. Use null if the text says the answer cannot be determined, is '
+                      'unavailable, or that the thing asked about does not exist. Copy the value from the '
+                      'text; do not add facts.\nQuestion: ' + question + '\nText: ' + candidate, trace)
+    value = report.get('answer')
+    accepted = isinstance(value, str) and value.strip() and normalize_text(value) in normalize_text(candidate)
+    result = value.strip() if accepted else UNVERIFIED
+    trace.add('submission_form', role=role, original=candidate[:2000], value=result,
+              scope='form only; extracted value must occur in the candidate text')
+    return result
