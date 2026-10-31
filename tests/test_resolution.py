@@ -44,6 +44,21 @@ def test_temporal_rejects_fabricated_period_quote():
  with pytest.raises(ValueError):temporal_neighbors(r,2018,[page('Current roster with no historical provenance')])
 
 
+def test_native_roster_requires_observed_bilingual_identity_bridge():
+ r=roster()
+ row=r['rows'][0]
+ row.update(native_name='デルタ',quote='Number 9 Player デルタ pitcher')
+ body=r['time_quote']+'\n'+'\n'.join(x['quote'] for x in r['rows'])
+ events=[page(body)]
+ with pytest.raises(ValueError):temporal_neighbors(r,2018,events)
+ alias='Delta is the Roman name of デルタ in this bilingual profile.'
+ row['name_support']=[{'source_url':'https://example.org/profile','quote':alias}]
+ profile=page(alias);profile['result']='SOURCE: https://example.org/profile\n'+alias
+ assert temporal_neighbors(r,2018,events+[profile])=='Alpha, Delta'
+ row['surname']='Invented'
+ with pytest.raises(ValueError):temporal_neighbors(r,2018,events+[profile])
+
+
 def test_year_matching_supports_non_latin_date_suffixes():
  r=roster();r['time_quote']='Official 2018\u5e74 roster for the season'
  body=r['time_quote']+'\n'+'\n'.join(x['quote'] for x in r['rows'])

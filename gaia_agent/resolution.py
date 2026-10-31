@@ -101,7 +101,13 @@ def temporal_neighbors(report, year, events):
     for row in rows:
         n=row.get('number'); surname=row.get('surname'); quote=row.get('quote','')
         if type(n) is not int or n in by_number or not isinstance(surname,str) or not surname.strip():raise ValueError('invalid roster row')
-        validate_support([{'source_url':source,'quote':quote}],events,[surname])
+        native=row.get('native_name')
+        if native and native != surname:
+            validate_support([{'source_url':source,'quote':quote}],events,[native])
+            # A translation is an identity join, not permission to invent a name.
+            validate_support(row.get('name_support'),events,[native,surname])
+        else:
+            validate_support([{'source_url':source,'quote':quote}],events,[surname])
         if not re.search(r'(?<!\d)'+str(n)+r'(?!\d)',quote):raise ValueError('number missing from row evidence')
         if row.get('eligible') is not True:raise ValueError('row does not satisfy requested role')
         by_number[n]=surname
@@ -127,9 +133,9 @@ def solve_temporal_neighbors(agent,question,registry,trace):
                 return json.dumps(rows,ensure_ascii=False)
         except ValueError:pass
         return raw
-    def historical_fetch(url):
+    def historical_fetch(url,link_query=None):
         from .tools import fetch_url
-        raw=fetch_url(url,link_query=str(year))
+        raw=fetch_url(url,link_query=link_query or str(year))
         dates=re.findall(r'UPDATE[^\n]*?(20\d{2}|19\d{2})',raw,re.I)
         if temporal_source_conflict(raw,year):
             links=raw.split('NAVIGATION LINKS',1)[-1] if 'NAVIGATION LINKS' in raw else ''
@@ -144,22 +150,37 @@ def solve_temporal_neighbors(agent,question,registry,trace):
     prompt=('Find the HISTORICAL roster needed by the question, never substitute today\'s roster. '
         'Use an official season-specific register or archived page; a reputable historical register is also acceptable. '
         'Prioritize results whose title or URL explicitly includes the year. Follow navigation links to season archives; do not invent URLs. Avoid repeating identical failed searches. Search with the target year, '
-        'follow relevant historical links, and try native-language queries if needed. '
+        'follow relevant historical links. For non-English teams/institutions, search in their native language EARLY '
+        '(native organization name + year + local words for roster and uniform/identifier number). '
+        'Do not require the roster itself to be in English. A dated native-language season register is useful evidence. '
         'Return ONLY JSON {"year":integer,"source_url":"fetched URL","time_quote":"literal heading or dated statement establishing roster period, not copyright",'
         '"target_number":integer,"rows":[{"number":integer,"surname":"Roman surname",'
-        '"eligible":true,"quote":"literal source row containing number and surname"}]}. '
+        '"eligible":true,"quote":"literal source row containing number and original name",'
+        '"native_name":"original-script surname if different from Roman surname",'
+        '"name_support":[{"source_url":"fetched bilingual profile URL","quote":"literal text linking original and Roman names"}]}]}. '
         'Include target and exact numeric neighbors; do not calculate final answer. '
         'Rows must come from the SAME dated roster. Preserve original text in quotes. '
+        'For translated names, fetch a bilingual profile linking the original surname and Roman surname; '
+        'do not translate quotations or invent transliterations. Name profiles may be current: they establish identity only, '
+        'while the dated roster establishes past numbers and roles. '
         'If unavailable return {}. Task: '+question)
     messages=[{'role':'system','content':prompt}]
-    for attempt,turns in enumerate((7,3)):
+    for attempt,turns in enumerate((10,6)):
         raw=agent._run_tool_loop(messages,web,trace,turns,'subtask',
                                 final_instruction='Return the historical roster JSON with literal quotes or {}.',final_json=True)
         report=read_json_object(raw)
         try:answer=temporal_neighbors(report,year,trace.events)
         except (ValueError,TypeError) as exc:
             trace.add('temporal_contract_rejected',reason=str(exc),report=report)
-            messages.extend([{'role':'assistant','content':raw},{'role':'user','content':'Repair this dated-evidence requirement: '+str(exc)}])
+            from .evidence import evidence_packet
+            completed=[{'tool':e.get('name'),'arguments':e.get('arguments'),'ok':e.get('succeeded')}
+                       for e in trace.events if e.get('type')=='tool_call']
+            messages.extend([{'role':'assistant','content':raw},{'role':'user','content':
+                'Repair this dated-evidence requirement: '+str(exc)+
+                '\nDo NOT repeat these completed searches/URLs: '+json.dumps(completed,ensure_ascii=False)+
+                '\nExisting observations: '+evidence_packet(trace.events,focus=(question,))+
+                '\nIf an English historical roster was not found, switch to a native-language year-specific '
+                'roster query, then obtain bilingual identity evidence. Do not re-open current rosters.'}])
             continue
         trace.add('temporal_contract_validated',report=report)
         return answer
