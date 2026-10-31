@@ -260,3 +260,35 @@ Next unresolved categories: complete historical-source acquisition and exact sou
 identity/navigation for similarly titled web documents. Historical retrieval now
 costs substantially more without improving accuracy; do not describe the entire
 change as a cost optimization or a robust 18/20 guarantee.
+
+
+## R9: preserve measured accuracy while isolating specialized behavior
+
+Before editing, R8 was preserved at `checkpoint/r8-before-policy-refactor` and
+in a verified Git bundle. R9 separates property policy definitions from the list
+executor and moves optional dispatch out of the agent loop. Applicability now
+requires supported semantics, rather than broad keyword coincidence. Specialized
+workflows and domain policies have independent configuration switches and traces.
+
+New tests cover culinary interpretation, general classification, version numbers,
+nearest/occupied identifiers, video descriptions versus simultaneous counts, and
+recently updated retrospective pages. The shared property executor is also tested
+with an unrelated materials policy. The first test run correctly exposed an old
+assertion that rejected a recent page even when it contained a dated archive; the
+assertion was updated to the new intended behavior, with conflict tests retained.
+
+Fresh run `full_20261031T011756Z` at `6086685` scored 18/20. The previously repaired
+video and plant-list tasks stayed correct. Chemistry lookup recovered and funding
+lookup regressed; historical roster remained unresolved. Preserve both runs:
+there is no evidence that relocating policy code caused those web-path changes.
+
+Non-GAIA smoke run `behavior_20261031T011854Z`: six semantically correct responses,
+five exact strings, one harmless comma-spacing mismatch. This small authored set
+is not a statistical held-out benchmark. Default routing and the two disabling
+switches are covered by deterministic checks; no all-flags model ablation was run.
+
+R9 uses 497,302 chat tokens (+27.3% versus R8). Historical and funding retrieval
+account for most of the increase. The benefit demonstrated here is separation of
+concerns and narrower interception, with preserved development-set accuracy; it
+is not proven generalization or cost improvement. No benchmark-specific answer
+lookup, task-ID route, or copied answer set was introduced.

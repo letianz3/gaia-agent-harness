@@ -78,7 +78,7 @@ def solve_source_list(agent, question, context, trace, registry=None):
     if not getattr(getattr(agent,'settings',None),'domain_policies_enabled',True):
         spec['policy_id']=None
     trace.add('domain_policy',policy=spec.get('policy_id'),scope='optional list interpretation; not general agent instructions')
-    observed = '' 
+    observed = ''
     if spec['mode'] == 'classify' and registry is not None:
         start = len(trace.events)
         agent._run_tool_loop([

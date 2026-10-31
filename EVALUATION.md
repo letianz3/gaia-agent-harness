@@ -1,3 +1,42 @@
+# R9 policy isolation and applicability boundaries
+
+Runtime `6086685`, run `full_20261031T011756Z`: **18/20**, a fresh complete
+run and official submission. No post-hoc answer replacement or normalization
+re-score. Model remains gpt-4.1-mini. 103 local tests pass.
+
+| Metric | R8 | R9 |
+|---|---:|---:|
+| Correct / 20 | 18 (format re-score) | 18 (fresh run) |
+| Chat tokens | 390,706 | 497,302 |
+| Summed agent latency, seconds | 329.397 | 339.970 |
+| Tool calls | 62 | 67 |
+| Model requests | 159 | 165 |
+
+Source lookup for the chemistry question recovered; the funding question
+regressed. Video and botanical answers remained correct. Historical retrieval
+remained unresolved. Those unchanged web paths do not support attributing either
+variation to the policy refactor. Tokens increased 27.3%: historical retrieval
+rose from 58,567 to 111,012 and funding retrieval from 33,970 to 79,463. This is
+not a cost-efficiency improvement.
+
+The new non-GAIA smoke set is `scripts/run_behavior_smoke.py`, with raw outputs
+in local run `behavior_20261031T011854Z`. Arithmetic, version ordering, material
+classification, culinary classification, dated reading and explicit exclusions
+all had correct content. Exact strings passed 5/6; version ordering returned
+`3,5` versus expected `3, 5`, an allowed separator-spacing difference. The raw
+failure is retained. These are newly authored smoke cases, not an independent
+representative benchmark or proof of broad generalization. They were not run
+against the old model workflow; no comparative accuracy claim is made.
+
+Default settings enable scoped strategies and domain policies independently.
+Disable either using AGENT_SPECIALIZED_WORKFLOWS_ENABLED or
+AGENT_DOMAIN_POLICIES_ENABLED for subsequent ablations. Config values are stored
+in experiment summaries. Unsupported or ambiguous policy scopes use the general
+agent; failure of an applicable evidence contract remains explicit rather than
+silently relaxing its constraints.
+
+---
+
 # R8 evidence resolution
 
 Fresh run `full_20261030T222219Z`, runtime `83ea796`: **17/20**.

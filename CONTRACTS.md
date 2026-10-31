@@ -69,3 +69,32 @@ evidence requirements; rejected claims are preserved in local traces.
 
 All three are bounded routes layered around the ordinary tool loop. They add
 evidence structure rather than additional free-form critics to every request.
+
+
+## R9: separate mechanism, strategy and domain interpretation
+
+`agent.py` calls `workflows.solve_specialized` before its general loop. The
+strategy dispatcher records its selection or general fallback in the trace.
+`AGENT_SPECIALIZED_WORKFLOWS_ENABLED=false` bypasses this dispatch and specialized
+video census while keeping ordinary tools and the general agent available.
+
+`policies.py` owns domain interpretation. Its PropertyPolicy declares a field,
+vocabulary, aliases, accepted values and instructions. The list executor performs
+coverage, provenance, exclusions and formatting without embedding accepted plant
+parts. A synthetic material-conductivity policy exercises the same executor.
+`AGENT_DOMAIN_POLICIES_ENABLED=false` disables automatic domain interpretation
+while retaining source-list extraction and generic classification.
+
+The botanical policy only activates for explicit exclusion of botanical fruits
+from vegetables, and conservatively abstains on culinary/everyday requests. This
+is a policy choice with limited scope, not a universal vegetable definition.
+The temporal strategy requires surname output and exact adjacent numbers;
+version ordering, alphabetical and nearest-occupied requests do not enter it.
+A recently updated document is not rejected merely for its update year when it
+contains an explicitly dated historical roster section. Month validity and row
+scope still require evidence interpretation. Video census additionally requires
+a maximum/count question; describing simultaneous interactions is insufficient.
+
+Negative routing tests and the six non-GAIA model smoke cases provide evidence
+against specific accidental interceptions. Wider unseen-task evaluations remain
+necessary; retaining 18/20 on the development set does not establish that.

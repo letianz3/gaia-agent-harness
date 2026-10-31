@@ -38,6 +38,7 @@ failed experiments are retained in Git, without mixing answers across runs.
 | R7b · `87e0b03` | **17/20** | 370,653 | Keep deterministic table selection/arithmetic and bounded PDFs; make strict entity chains opt-in. | All three regression targets correct; the gain over R5 is the funding answer. Entity gains use the existing lookup route, not proof of the experimental chain. |
 | R8a · `83ea796` | 17/20 | 390,706 | Inspect video segments individually, classify plant parts before applying rules, and enforce dated roster evidence. | Video and botanical targets repaired; historical roster remains unresolved. An unrelated webpage answer and terminal punctuation regressed. |
 | R8b · `b1e5982` | **18/20*** | 390,706 | Normalize sentence punctuation on single-word answer contracts. | Re-score the same complete answer set; no new model calls or answer-set mixing. Historical roster and chemistry-page lookup remain unresolved. |
+| R9 · `6086685` | **18/20** | 497,302 | Isolate optional domain policies and strategy dispatch; narrow applicability and allow dated retrospective sources. | Fresh full run preserves score. Six non-GAIA smoke tasks have correct content (5/6 exact strings). Cost increased; broad generalization is not established. |
 
 R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
 recipe wording and chess perception-to-engine execution. The actor answer also
@@ -49,8 +50,9 @@ runs; this is not a controlled causal ablation or proof of generalization.
 R8 uses 5.4% more chat tokens than R7b. Video repair reproduced in targeted and
 full runs; botanical classification succeeded in the full run but needs further
 stability checks. Source identity and historical retrieval remain limitations.
-The current tree passes 89 local tests, including a subsequent non-Latin date
-parsing fix (`00e3182`); that fix was trace-replayed, not freshly benchmarked.
+R9 passes 103 local tests, including negative routing cases and reuse of the
+property executor for a non-botanical domain. It is a fresh 18/20 run; chat tokens
+rose 27.3% versus R8, mainly in historical and funding retrieval.
 See [code-owned contracts](CONTRACTS.md) and [evaluation details](EVALUATION.md).
 Token totals exclude audio transcription. R0 is preserved as a local source
 snapshot. Stable tags preserve R1/R4/R5, and
