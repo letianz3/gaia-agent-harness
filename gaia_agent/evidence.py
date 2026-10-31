@@ -40,6 +40,18 @@ def materialize_support(report, evidence):
 
 def relevant_excerpt(value, focus, limit):
     """Rank literal source windows, never synthesize evidence or splice quotations."""
+    # Counting requires collection coverage, not isolated keyword hits. Preserve
+    # a bounded, explicitly delimited matching section when the source exposes it.
+    question = focus[0] if focus else ''
+    count = re.search(r'\bhow many\s+(.{1,80}?)\s+(?:were|was|are|have|has|did|does|do|had|will|can)\b', question, re.IGNORECASE)
+    if count:
+        subject = re.sub(r'^the\s+', '', count[1], flags=re.IGNORECASE).casefold()
+        headings = list(re.finditer(r'(?m)^([^\n]{1,100})\n\[\nedit\n\]', value))
+        for current, following in zip(headings, headings[1:]):
+            if current[1].strip().casefold() == subject:
+                section = value[current.start():following.start()]
+                if len(section) <= 4000:
+                    return value[:200] + '\n[relevant source windows]\n' + section, 2000
     stop={'what','which','where','when','that','this','with','from','their','about','under',
           'have','only','give','answer','number','find','were','does','they','into','mentioned'}
     terms={t.casefold() for text in focus for t in re.findall(r'[\w-]{4,}',text) if t.casefold() not in stop}

@@ -4,6 +4,16 @@ from gaia_agent.evidence import evidence_packet, has_valid_support
 from gaia_agent.verification import select_verified
 
 
+def test_count_question_preserves_complete_bounded_collection_section():
+    raw='SOURCE: https://example.org/catalog\n'+'noisy biography '*1000
+    section='\nResearch reports\n[\nedit\n]\nYear\nTitle\n1999\nBefore\n2005\nFirst\n2009\nSecond\n2009\nThird\n2011\nAfter\n'
+    raw+=section+'Other publications\n[\nedit\n]\nNot part of this collection'
+    packet=evidence_packet([observation(raw)],focus=('How many research reports were published between 2000 and 2009?','3'))
+    assert all(word in packet for word in ('Before','First','Second','Third','After'))
+    assert 'Not part of this collection' not in packet
+    assert len(packet)<8000
+
+
 def test_evidence_selection_materializes_only_observed_spans_without_promoting_verdict():
     from gaia_agent.evidence import materialize_support
     packet='\n'.join(json.dumps(row) for row in [
