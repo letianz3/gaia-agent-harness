@@ -41,9 +41,9 @@ def test_search_only_research_fetches_bounded_actual_sources_and_verifier_exclud
         return 'SOURCE: '+json.loads(args)['url']+'\nObserved content',True
     registry=SimpleNamespace(execute=execute)
     fetch_search_only_sources(registry,trace)
-    assert len(calls)==3
+    assert len(calls)==4
     fetch_search_only_sources(registry,trace)
-    assert len(calls)==3
+    assert len(calls)==4
     packet=direct_evidence(evidence_packet(trace.events))
     assert 'discovery_only' not in packet and 'Observed content' in packet
 

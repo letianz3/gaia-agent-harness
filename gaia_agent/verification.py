@@ -8,19 +8,23 @@ UNVERIFIED='Unable to verify answer'
 
 
 def fetch_search_only_sources(registry, trace):
-    """If research stopped at snippets, fetch at most one lead per query (three total)."""
+    """Fetch unread top search leads, at most four total across both reviews."""
     if registry is None:
         return
     events=list(trace.events)
-    if any(e.get('type')=='tool_call' and e.get('succeeded') and e.get('name')!='search_web' for e in events):
-        return
     seen=set()
+    used=sum(e.get('phase')=='discovery_to_evidence' for e in events)
     for event in events:
+        if event.get('name')=='fetch_url':
+            try:seen.add(json.loads(event.get('arguments','{}')).get('url'))
+            except (ValueError,TypeError):pass
+    for event in events:
+        if used>=4:break
         if event.get('name')!='search_web' or not event.get('succeeded'):continue
         try:rows=json.loads(event.get('result',''))
         except (ValueError,TypeError):continue
         if not isinstance(rows,list):continue
-        for row in rows:
+        for row in rows[:1]:
             url=row.get('url') if isinstance(row,dict) else None
             if not isinstance(url,str) or not url.startswith(('https://','http://')) or url in seen:continue
             seen.add(url)
@@ -28,8 +32,8 @@ def fetch_search_only_sources(registry, trace):
             raw,ok=registry.execute('fetch_url',args)
             trace.record_tool_call()
             trace.add('tool_call',name='fetch_url',arguments=args,result=raw,succeeded=ok,phase='discovery_to_evidence')
+            used+=1
             break
-        if len(seen)>=3:break
 
 
 class RecoveryRegistry:

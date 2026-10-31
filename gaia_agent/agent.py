@@ -1016,6 +1016,7 @@ Respond ONLY as JSON:
             trace.add('answer_verification_unresolved',reason='no actionable evidence gap')
             return UNVERIFIED
 
+        fetch_search_only_sources(registry, trace)
         shared_evidence=evidence_packet(trace.events,focus=(question,incumbent,challenger)) or evidence
         if challenger == incumbent:
             # New observations may now verify an unchanged answer; do not confuse
