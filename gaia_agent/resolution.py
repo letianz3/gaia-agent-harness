@@ -20,6 +20,27 @@ def item_evidence(events, items):
     return json.dumps(records,ensure_ascii=False)
 
 
+def census_identity(group):
+    """Normalize formatting and explicit life-stage annotations, not taxonomy.
+
+    Never stem species names or merge by broad family/common-name resemblance.
+    Plain names are preserved; stage suffixes require an annotation delimiter.
+    """
+    key = group.get('species_key')
+    if not isinstance(key, str) or not key.strip():
+        raise ValueError('species identity required')
+    key = key.strip().casefold()
+    stage = r'(?:adult|chick|juvenile|immature|fledgling)s?'
+    if re.fullmatch(stage, key):
+        raise ValueError('life stage alone is not a species identity')
+    key = re.sub(r'\s*\(' + stage + r'\)\s*$', '', key)
+    key = re.sub(r'[_:]' + stage + r'$', '', key)
+    key = re.sub(r'[_\s]+', ' ', key).strip()
+    if not key:
+        raise ValueError('life stage alone is not a species identity')
+    return key
+
+
 def census_count(report, timestamps):
     frames=report.get('frames')
     if not isinstance(frames,list) or not frames:raise ValueError('frame census required')
@@ -35,7 +56,7 @@ def census_count(report, timestamps):
             if not isinstance(key,str) or not key.strip() or not group.get('visual_features') or not group.get('location'):
                 raise ValueError('each group needs identity, visible features and location')
             if group.get('uncertain') is not False:raise ValueError('unresolved visual identity')
-            ids.add(key.strip().casefold())
+            ids.add(census_identity(group))
         counts.append(len(ids))
     if seen!=set(timestamps):raise ValueError('every inspected frame needs a census')
     return max(counts)
@@ -61,7 +82,8 @@ def inspect_census(agent, question, sheets, video_path, media_dir, trace):
         'same species; different species within a broad group need separate keys and distinguishing '
         'features. Do not merge solely because both are penguins, ducks, gulls, etc. Do not add '
         'species merely heard or seen in another frame. Return JSON {"frames":[{"timestamp":number,'
-        '"groups":[{"species_key":"name or distinct morphological group","visual_features":"visible distinguishing traits",'
+        '"groups":[{"species_key":"canonical species name ONLY, never age/sex/individual ID","life_stage":"adult/chick/juvenile/unknown",'
+        '"visual_features":"visible distinguishing traits",'
         '"location":"where in this frame","uncertain":false}]}]}. '
         'Mark uncertain true when identities cannot be separated. Do not output a count. '
         'Image timestamps, in order: '+json.dumps(stamps)+' Task: '+question,
