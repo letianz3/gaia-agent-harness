@@ -60,7 +60,7 @@ def test_uncertainty_allows_one_acquisition_and_requires_review(monkeypatch, rev
     from gaia_agent.agent import BaselineAgent
     from gaia_agent.tracing import Trace
     agent = object.__new__(BaselineAgent)
-    agent.settings = SimpleNamespace(planning_enabled=True, replanning_enabled=True,
+    agent.settings = SimpleNamespace(planning_enabled=True, replanning_enabled=True, abstain_on_unverified=True,
                                      max_reflection_rounds=2, max_replans=1, planning_turns_per_subtask=6)
     verdicts = iter([('UNCERTAIN', 'missing source'), (review, 'reviewed')])
     acquisitions = []
@@ -87,7 +87,7 @@ def test_broken_review_never_launches_more_research(monkeypatch, problem):
     from gaia_agent.agent import BaselineAgent
     from gaia_agent.tracing import Trace
     agent = object.__new__(BaselineAgent)
-    agent.settings = SimpleNamespace(max_reflection_rounds=2)
+    agent.settings = SimpleNamespace(max_reflection_rounds=2, abstain_on_unverified=True)
     def review(*args):
         args[3].add('critique', next_action='acquire_evidence', target='Fetch a source', **{problem:True})
         return 'UNCERTAIN', 'review broken'
@@ -160,3 +160,18 @@ def test_large_pdf_keeps_end_of_document_and_source(monkeypatch):
     assert result.startswith('SOURCE: https://example.org/paper.pdf')
     assert 'Introduction' in result and 'Final acknowledgement: Grant EXAMPLE-42' in result
     assert '[Middle text omitted]' in result
+
+
+def test_search_retries_a_round_after_transient_failures(monkeypatch):
+    import ddgs
+    import time
+    calls = []
+    def text(query, **kw):
+        calls.append((query, kw['backend']))
+        if len(calls) <= 3:
+            raise RuntimeError('rate limited')
+        return [{'title': 'ok', 'href': 'https://example.org', 'body': 'b'}]
+    monkeypatch.setattr(time, 'sleep', lambda s: None)
+    monkeypatch.setattr(ddgs, 'DDGS', lambda **kw: SimpleNamespace(text=text))
+    assert 'example.org' in search_web('"玉井 大翔" 背番号', 3)
+    assert len(calls) == 4 and calls[3][0] == '"玉井 大翔" 背番号'

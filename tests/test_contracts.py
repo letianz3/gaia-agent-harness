@@ -95,7 +95,7 @@ def test_unresolved_prerequisite_blocks_remaining_steps(monkeypatch):
     from gaia_agent.registry import ToolRegistry
     registry=ToolRegistry()
     trace=Trace('synthetic','first name')
-    assert solve_entity(agent,'Give only the first name',registry,trace)=='Unable to verify the requested entity'
+    assert solve_entity(agent,'Give only the first name',registry,trace) is None  # defers; never abstains
     assert calls==[4,2]
     assert any(e['type']=='entity_chain_blocked' and e['step']==0 for e in trace.events)
 

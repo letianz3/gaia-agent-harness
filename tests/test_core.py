@@ -681,6 +681,7 @@ def test_targeted_recovery_rejects_unsupported_challenger(tmp_path: Path) -> Non
             return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
 
     settings = Settings(
+        abstain_on_unverified=True,
         api_url="https://example.test",
         api_key="",
         model="fake-model",
@@ -741,6 +742,7 @@ def test_uncertain_candidates_do_not_privilege_incumbent(tmp_path: Path) -> None
             return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
 
     settings = Settings(
+        abstain_on_unverified=True,
         api_url="https://example.test",
         api_key="",
         model="fake-model",

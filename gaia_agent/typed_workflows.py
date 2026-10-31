@@ -84,8 +84,8 @@ def solve_table(agent,question,files,trace):
         if re.search(r'two decimal|2 decimal',question,re.I):
             return format(total,'.2f')
         return format(total,'f')
-    trace.add('table_contract_blocked',reason='selection unresolved')
-    return 'Unable to validate the aggregation'
+    trace.add('table_contract_blocked',reason='selection unresolved; deferring to the general pipeline')
+    return None
 
 
 def validate_chain(plan):
@@ -202,8 +202,8 @@ def solve_entity(agent,question,registry,trace):
                 messages.extend([{'role':'assistant','content':raw},
                                  {'role':'user','content':'Resolve this specific missing contract/evidence requirement: '+str(exc)+recovery}])
         else:
-            trace.add('entity_chain_blocked',step=index,reason='prerequisite unresolved; no dependent execution')
-            return 'Unable to verify the requested entity'
+            trace.add('entity_chain_blocked',step=index,reason='prerequisite unresolved; deferring to the general pipeline')
+            return None
         trace.add('entity_contract_validated',step=index,entity=entity,support=report['support'])
         predecessor=entity
         prior_support=report['support']

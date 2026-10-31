@@ -78,3 +78,14 @@ def test_navigation_json_remains_parseable_and_same_source_budget_is_atomic():
     for raw, ok in results:
         if ok:
             assert json.loads(raw.split(marker)[1])[0]['url'] == 'https://example.org/b'
+
+
+def test_blocked_reread_returns_stored_literal_tables_not_a_bare_refusal():
+    body = 'SOURCE: https://example.org/counts\nCounts page\n[TABLE 1: 2 rows x 2 columns]\n| Code | Total |\n| AAA | 3 |\n| BBB | 1 |\n[END TABLE 1]\nFooter'
+    trace = Trace('test', 'Which code has the least total? If tied, alphabetical.')
+    for _ in range(2):
+        trace.add('tool_call', name='fetch_url', arguments='{"url":"https://example.org/counts"}', succeeded=True, result=body)
+    proxy = SourceProgressRegistry(SimpleNamespace(execute=lambda *a: (_ for _ in ()).throw(AssertionError('no fetch'))), trace)
+    raw, ok = proxy.execute('fetch_url', '{"url":"https://example.org/counts"}')
+    assert not ok  # not a new observation
+    assert 'CACHED SOURCE TEXT' in raw and '| BBB | 1 |' in raw and 'Counts page' in raw

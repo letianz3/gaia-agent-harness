@@ -56,6 +56,7 @@ class Settings:
     typed_entities_enabled: bool = False
     specialized_workflows_enabled: bool = True
     domain_policies_enabled: bool = True
+    abstain_on_unverified: bool = False
     memory_enabled: bool = True
     memory_max_messages: int = 16
     memory_keep_recent: int = 6
@@ -97,6 +98,7 @@ class Settings:
             typed_entities_enabled=_boolean("AGENT_TYPED_ENTITIES_ENABLED", False),
             specialized_workflows_enabled=_boolean("AGENT_SPECIALIZED_WORKFLOWS_ENABLED", True),
             domain_policies_enabled=_boolean("AGENT_DOMAIN_POLICIES_ENABLED", True),
+            abstain_on_unverified=_boolean("AGENT_ABSTAIN_ON_UNVERIFIED", False),
             memory_enabled=_boolean("AGENT_MEMORY_ENABLED", True),
             memory_max_messages=memory_max_messages,
             memory_keep_recent=memory_keep_recent,

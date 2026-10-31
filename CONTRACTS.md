@@ -98,3 +98,35 @@ a maximum/count question; describing simultaneous interactions is insufficient.
 Negative routing tests and the six non-GAIA model smoke cases provide evidence
 against specific accidental interceptions. Wider unseen-task evaluations remain
 necessary; retaining 18/20 on the development set does not establish that.
+
+## Tables, record grounding and ranking (R14 candidate)
+
+`web_tables.py` renders every HTML data table as one delimited line per row inside
+`[TABLE n: R rows x C columns]` / `[END TABLE n]` markers. Colspan/rowspan and
+multi-row headers (including `<td>`-styled headers) expand into named columns;
+data colspans are shown once, rowspans repeat. The rendered text IS the
+observation, so a copied row is a literal source span, and code parses the same
+text back. Blocks interrupted by long-document truncation are marked incomplete.
+This replaces per-cell `Header: value` labels, which produced multi-line records
+that models re-joined into nonliteral quotations. Evidence windows inside a table
+receive the table's literal header line as a separate span.
+
+Provenance comparison uses NFKC compatibility equivalence (`contracts.canonical`):
+full-width digits, letters and spaces match their ASCII forms. Reordering,
+rewording or a different number still fails.
+
+`literal_numbered_records` pairs an identifier with a name independently of
+layout: table rows, alternating identifier/name lines (orientation read from the
+end of the run), and labelled field blocks. The nearest identifier wins; a nearer
+or equally near conflicting identifier means the claimed pair was not observed.
+
+When a historical-roster report establishes a valid dated source but fails only
+row provenance, repair keeps that source (`dated_source_valid`) and shows its
+literal rows; the repair prompt no longer forbids citing already-fetched pages.
+
+`ranking.py` applies only to an explicit superlative plus an explicit
+alphabetical tie rule. The model chooses an observed complete table and the
+entity/value/answer/tie-key column indices; code drops blank or aggregate rows,
+requires mostly numeric values, computes the extremum and tie order, and decides
+before the prose critic or pairwise comparison. Table and column semantics remain
+a model choice recorded in `ranking_contract_validated`.

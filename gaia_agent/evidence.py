@@ -1,6 +1,11 @@
 """Bounded raw evidence for synthesis and independent verification."""
 import json
 import re
+import unicodedata
+
+
+def _canonical_space(text):
+    return ' '.join(unicodedata.normalize('NFKC', text).split())
 
 
 def read_json_object(raw):
@@ -90,8 +95,25 @@ def relevant_excerpt(value, focus, limit):
         if remaining<180:break
         end=min(end,start+remaining);windows.append((start,end));used+=end-start+24
     if not windows:return value if len(value)<=limit else value[:limit-600]+'\n[excerpt omitted]\n'+value[-600:],0
+    windows=with_table_headers(value,windows)
     header=value[:200]
     return header+'\n[relevant source windows]\n'+'\n[separate span]\n'.join(value[a:b] for a,b in sorted(windows)),max(s for s,_,_ in ranked)
+
+
+def with_table_headers(value, windows):
+    """A row far below its table header loses column meaning; add the literal header line as its own span."""
+    extra=[]
+    for start,_ in windows:
+        opening=value.rfind('\n[TABLE ',0,start+1)
+        if opening<0:continue
+        closing=value.find('\n[END TABLE ',opening)
+        if closing!=-1 and closing<start:continue
+        line_start=value.find('\n',opening+1)+1
+        line_end=value.find('\n',line_start)
+        if line_start<=0 or line_end<0 or line_end-line_start>400 or not value.startswith('|',line_start):continue
+        if any(a<=line_start<b for a,b in windows+extra):continue
+        extra.append((line_start,line_end))
+    return sorted(set(windows+extra))
 
 
 def evidence_packet(events, start_index=0, budget=8000, focus=()):
@@ -139,7 +161,7 @@ def has_valid_support(raw, evidence):
             isinstance(s, dict) and s.get('id') in records
             and records[s['id']]['kind'] in {'observation', 'task_input'}
             and len(s.get('quote', '').strip()) >= 3
-            and any(' '.join(s['quote'].split()) in ' '.join(span.split())
+            and any(_canonical_space(s['quote']) in _canonical_space(span)
                     for span in re.split(r'\[(?:separate span|relevant source windows|excerpt omitted)\]',records[s['id']]['excerpt']))
             for s in supports)
     except (ValueError, TypeError, KeyError):

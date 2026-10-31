@@ -35,6 +35,7 @@ class SourceProgressRegistry:
         self.authors = explicit_authors(trace.question)
         self.visits = {}
         self.bodies = {}
+        self.texts = {}
         self.lock = threading.RLock()
         self.source_locks = {}
         for event in trace.events:
@@ -46,9 +47,26 @@ class SourceProgressRegistry:
                 if url and event.get('result', '').startswith('SOURCE: '):
                     key = source_key(url)
                     self.visits[key] = self.visits.get(key, 0) + 1
+                    self.texts[key] = event['result']
 
     def __getattr__(self, name):
         return getattr(self.registry, name)
+
+    def cached_passages(self, key, query, budget=12000):
+        """Complete rendered tables when they fit, else literal windows for the query."""
+        raw = self.texts.get(key)
+        if not raw:
+            return ''
+        body = raw.split('\nNAVIGATION LINKS', 1)[0]
+        from .web_tables import parse_table_blocks
+        blocks = [block for block in parse_table_blocks(body) if block['complete']]
+        text = '\n'.join('\n'.join([f"[TABLE {b['table']}]", *b['lines'], f"[END TABLE {b['table']}]"])
+                         for b in blocks)
+        if blocks and len(text) <= budget:
+            title = body.split('\n', 2)[1][:200] if '\n' in body else ''
+            return title + '\n' + text
+        from .evidence import relevant_excerpt
+        return relevant_excerpt(body, (self.trace.question, query), 4000)[0]
 
     def execute(self, name, arguments):
         if name != 'fetch_url':
@@ -64,15 +82,25 @@ class SourceProgressRegistry:
         with gate:
             if self.visits.get(key, 0) >= 2:
                 self.trace.add('source_progress', url=key, action='switch_source')
-                return ('SOURCE EXPLORATION LIMIT: this document has already been read and '
-                        'navigation explored. Changing link_query only filters links; it does not '
-                        'search the body or locate another book. Search for the requested source '
+                limit = ('SOURCE EXPLORATION LIMIT: this document has already been read and '
+                         'navigation explored. Changing link_query only filters links; it does not '
+                         'search the body or locate another book.')
+                cached = self.cached_passages(key, args.get('link_query') or '')
+                if cached:
+                    # A valid source stays usable: refusing it outright made repair
+                    # loops answer from memory or abandon the right document.
+                    # Not a new observation (ok=False): the original read is already evidence.
+                    return (limit + ' Its stored text is repeated below; use it. Only if it lacks '
+                            'the fact, open a DIFFERENT observed URL.\n'
+                            'CACHED SOURCE TEXT (literal, not a new fetch):\n' + cached), False
+                return (limit + ' Search for the requested source '
                         'identity, then open a DIFFERENT observed URL. Suggested identity query: '
                         + ' '.join(json.dumps(author) for author in self.authors)), False
             raw, ok = self.registry.execute(name, arguments)
             if not ok or not raw.startswith('SOURCE: '):
                 return raw, ok
             self.visits[key] = self.visits.get(key, 0) + 1
+            self.texts[key] = raw
             body = raw.split('\nNAVIGATION LINKS', 1)[0]
             fingerprint = hashlib.sha256(body.encode()).hexdigest()
             unchanged = self.bodies.get(key) == fingerprint

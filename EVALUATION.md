@@ -703,3 +703,31 @@ observations, not a controlled ablation or held-out result. No new model upgrade
 task-ID branch, benchmark answer constant or entity-specific URL was added.
 The current conclusion is **two fresh 19/20 runs with different failures; stable
 20/20 has not been achieved**. Earlier checkpoints and failed trials are retained.
+
+## R14 candidate: table structure, canonical provenance and code-owned ranking
+
+Not yet evaluated on fresh full runs. Changes target the two R13 frozen failures
+using offline replays of their traces and real page fixtures; no task IDs,
+entity names, URLs or answer constants were added.
+
+Historical roster (R13 run 1). The correct source was fetched and the model's
+rows were right (18, 19, 20 with the correct names). Validation rejected them
+because the page uses full-width digits (`１８`) while the quotation used `18`.
+The labelled layout was itself produced by R12's per-cell header labels, which
+R13's number/name grounding pattern did not recognise. The repair prompt then
+said "Do NOT repeat these completed searches/URLs", steering the model to a
+current roster that the date contract correctly rejected. Replay: with NFKC
+comparison alone, the original rejected report passes row provenance; the new
+layout-agnostic grounding copies literal records for the old labelled layout and
+the new table rows.
+
+Olympic minimum (R13 run 2). The count table was flattened to one cell per line,
+so evidence windows contained only a few countries and the critic's request for
+tie coverage was reasonable. The source-exploration limit then refused re-reading
+the same table, and the revision produced DEN; pairwise comparison rejected CUB
+while citing CUB=1 and DEN=91. Replay on the real table: the ranking contract
+computes minimum 1 with tie {CUB, PAN} and returns CUB, keeping a CUB incumbent
+and overriding a DEN incumbent, without either model judgement.
+
+Local tests: 164 pass (142 before). Model-dependent steps (table/column choice,
+roster extraction) still need fresh full runs before any score is claimed.

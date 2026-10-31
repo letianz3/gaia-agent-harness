@@ -4,7 +4,7 @@ import re
 
 from .evidence import direct_evidence, has_valid_support, materialize_support, read_json_object
 
-UNVERIFIED='Unable to verify answer'
+from .decision import UNVERIFIED  # noqa: F401 - re-exported for callers
 
 
 def fetch_search_only_sources(registry, trace):
@@ -151,8 +151,8 @@ def compare_answers(agent,question,first,second,evidence,trace):
     trace.add('candidate_comparison',candidates={'A':first,'B':second},report=report,selected=selected,
               evidence=evidence,scope='literal provenance checked by code; entailment judged by model')
     if selected is None:
-        trace.add('answer_verification_unresolved',reason='no unique supported candidate')
-        return UNVERIFIED
+        from .decision import unresolved
+        return unresolved(agent,trace,'no unique supported candidate',first,second,report)
     return first if selected=='A' else second
 
 

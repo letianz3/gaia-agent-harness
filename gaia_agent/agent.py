@@ -899,7 +899,8 @@ Respond ONLY as JSON:
         navigation=navigation_evidence(registry,trace,question)
         recovery_registry = RecoveryRegistry(registry, trace, question)
         revision_task = (
-            'Already completed requests; do not repeat these: '+recovery_registry.history()+'\n'
+            'Requests already made (their results are in the observations below; cite them freely, '
+            'but an identical repeat adds nothing): '+recovery_registry.history()+'\n'
             'Actual source navigation links (discovery only): '+navigation+'\n'
             'Follow relevant listed chapter/paper/PDF links; do not invent their URL paths. '
             f"Previous proposed answer: {answer}\n"
@@ -957,24 +958,32 @@ Respond ONLY as JSON:
         failure_tracker: FailureTracker | None,
         evidence: str,
     ) -> str:
-        incumbent = answer
-        from .verification import fetch_search_only_sources
+        """Staged verification; each stage either settles the answer or passes it on.
 
+        1. explicit output-contract repair (format only, no new facts);
+        2. computable answers: a reviewed declarative table query executed by code;
+        3. independent evidence critique;
+        4. one targeted acquisition or an evidence-backed correction;
+        5. stages 2-3 again on the enlarged evidence, then candidate comparison.
+        Unresolved verification is reported in the trace; answer selection is
+        delegated to decision.unresolved (best supported candidate by default).
+        """
+        from .decision import unresolved
+        from .verification import compare_answers, fetch_search_only_sources
+
+        incumbent = answer
         fetch_search_only_sources(registry, trace)
-        evidence=evidence_packet(trace.events,focus=(question,incumbent)) or evidence
-        trace.add('verification_evidence',candidates=[incumbent],packet=evidence)
+        evidence = evidence_packet(trace.events, focus=(question, incumbent)) or evidence
+        trace.add('verification_evidence', candidates=[incumbent], packet=evidence)
         violation = explicit_answer_violation(question, incumbent)
         if violation and self.settings.max_reflection_rounds >= 2:
             return self._repair_format(question, incumbent, violation, trace)
-        verdict, feedback = self._critique_answer(
-            question, incumbent, evidence, trace, 1
-        )
+        computed = self._computed_answer(question, incumbent, trace)
+        if computed is not None:
+            return computed
+        verdict, feedback = self._critique_answer(question, incumbent, evidence, trace, 1)
         if verdict == "PASS":
-            trace.add(
-                "candidate_selection",
-                selected="incumbent",
-                reason=f"initial_{verdict.lower()}",
-            )
+            trace.add("candidate_selection", selected="incumbent", reason="initial_pass")
             return incumbent
 
         review = next((e for e in reversed(trace.events) if e['type'] == 'critique'), {})
@@ -982,54 +991,72 @@ Respond ONLY as JSON:
         target = review.get('target', '').strip()
         # A broken reviewer is not evidence that the solver needs a new DAG.
         if self.settings.max_reflection_rounds < 2 or review.get('parse_failed'):
-            from .verification import UNVERIFIED
-            trace.add('answer_verification_unresolved',reason='review unusable or verification budget exhausted')
-            return UNVERIFIED
+            return unresolved(self, trace, 'review unusable or verification budget exhausted', incumbent)
         if review.get('citation_failed'):
-            action='acquire_evidence'
-            target='Find a direct primary-source passage answering: '+question
+            action = 'acquire_evidence'
+            target = 'Find a direct primary-source passage answering: ' + question
         proposed = review.get('corrected_answer', '').strip()
         if action == 'repair_answer' and proposed:
             challenger = normalize_answer(proposed, question)
             trace.add('evidence_repair', source='existing_observations')
         elif (action == 'acquire_evidence' and len(target) >= 10
-              and getattr(self.settings,"replanning_enabled",False) and getattr(self.settings,"max_replans",0) >= 1):
-            trace.add('targeted_acquisition', target=target, max_turns=min(3, self.settings.planning_turns_per_subtask))
+              and getattr(self.settings, "replanning_enabled", False)
+              and getattr(self.settings, "max_replans", 0) >= 1):
+            trace.add('targeted_acquisition', target=target,
+                      max_turns=min(3, self.settings.planning_turns_per_subtask))
             challenger = self._revise_answer(
-                question,
-                task_context,
-                incumbent,
+                question, task_context, incumbent,
                 f'{feedback}\nSpecific acquisition target: {target}',
-                registry,
-                trace,
-                failure_tracker,
-                1,
-                evidence,
-            )
+                registry, trace, failure_tracker, 1, evidence)
         else:
-            trace.add(
-                "candidate_selection",
-                selected="unresolved",
-                reason="no_actionable_evidence_gap",
-            )
-            from .verification import UNVERIFIED
-            trace.add('answer_verification_unresolved',reason='no actionable evidence gap')
-            return UNVERIFIED
+            trace.add("candidate_selection", selected="unresolved", reason="no_actionable_evidence_gap")
+            return unresolved(self, trace, 'no actionable evidence gap', incumbent)
 
         fetch_search_only_sources(registry, trace)
-        shared_evidence=evidence_packet(trace.events,focus=(question,incumbent,challenger)) or evidence
+        # Acquisition may have observed the complete collection the first check lacked.
+        computed = self._computed_answer(question, incumbent, trace)
+        if computed is not None:
+            return computed
+        shared_evidence = evidence_packet(trace.events, focus=(question, incumbent, challenger)) or evidence
         if challenger == incumbent:
-            # New observations may now verify an unchanged answer; do not confuse
-            # agreement with proof, or skip review of the acquired evidence.
-            verdict,_=self._critique_answer(question,incumbent,shared_evidence,trace,2)
-            if verdict=='PASS':
-                trace.add('candidate_selection',selected='incumbent',reason='unchanged_but_verified')
+            # New observations may now verify an unchanged answer; agreement is not proof.
+            verdict, _ = self._critique_answer(question, incumbent, shared_evidence, trace, 2)
+            if verdict == 'PASS':
+                trace.add('candidate_selection', selected='incumbent', reason='unchanged_but_verified')
                 return incumbent
-            from .verification import UNVERIFIED
-            trace.add('answer_verification_unresolved',reason='unchanged candidate remains unverified')
-            return UNVERIFIED
-        from .verification import compare_answers
-        return compare_answers(self,question,incumbent,challenger,shared_evidence,trace)
+            return unresolved(self, trace, 'unchanged candidate remains unverified', incumbent)
+        return compare_answers(self, question, incumbent, challenger, shared_evidence, trace)
+
+    def _computed_answer(self, question: str, incumbent: str, trace: Trace) -> str | None:
+        """Settle answers computable from a complete observed table, else return None.
+
+        Agreement between the solver and an independently written query settles the
+        answer. Disagreement changes it only when an independent review accepts the
+        query's semantics; code, not a model, performs the counting/ranking itself.
+        """
+        if not getattr(self.settings, 'specialized_workflows_enabled', False):
+            return None
+        from .table_queries import agrees, computed_answer, observed_tables, review_query
+        tables = len(observed_tables(trace.events))
+        previous = [e for e in trace.events if e.get('type') == 'table_query_spec']
+        if not tables or (previous and previous[-1].get('tables_seen', 0) >= tables):
+            return None  # nothing new to query since the last attempt
+        computed = computed_answer(self, question, trace)
+        specs = [e for e in trace.events if e.get('type') == 'table_query_spec']
+        if specs:
+            specs[-1]['tables_seen'] = tables
+        if computed is None:
+            return None
+        if agrees(incumbent, computed):
+            trace.add('candidate_selection', selected='incumbent', reason='table_query_agrees',
+                      computed=computed['answer'])
+            return incumbent
+        if review_query(self, question, computed['table'], computed['spec'], trace):
+            trace.add('candidate_selection', selected='table_query', reason='reviewed query disagrees with solver',
+                      incumbent=incumbent, computed=computed['answer'])
+            return normalize_answer(computed['answer'], question)
+        trace.add('table_query_unadopted', computed=computed['answer'], reason='query review failed')
+        return None
 
     def answer(self, question: str, task_id: str, task_dir: Path) -> str:
         try:

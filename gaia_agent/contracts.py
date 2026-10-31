@@ -1,6 +1,7 @@
 """Deterministic task contracts. Provenance checks are not semantic proof."""
 import json
 import re
+import unicodedata
 from decimal import Decimal
 
 
@@ -16,8 +17,17 @@ def ask_json(agent, prompt, trace):
     return data if isinstance(data,dict) else {}
 
 
+def canonical(text):
+    """Compatibility-equivalent text: full-width digits/letters/spaces become ASCII.
+
+    NFKC equivalence is a rendering difference, not a paraphrase, so provenance
+    checks may accept it while still rejecting reworded or reordered quotes.
+    """
+    return unicodedata.normalize('NFKC', str(text))
+
+
 def normalize_text(text):
-    return ' '.join(str(text).split()).casefold()
+    return ' '.join(canonical(text).split()).casefold()
 
 
 def evidence_windows(body, query, limit=5):

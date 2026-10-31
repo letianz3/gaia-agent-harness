@@ -115,15 +115,26 @@ def _validate_public_url(url: str) -> str:
 def search_web(query: str, max_results: int) -> str:
     from ddgs import DDGS
 
+    import time
+
     results = []
     errors = []
-    for backend in ("auto", "bing", "duckduckgo"):
-        try:
-            results = DDGS(timeout=12).text(query, max_results=max_results, backend=backend)
-            if results:
-                break
-        except Exception as exc:
-            errors.append(type(exc).__name__)
+    # Backend failures are mostly transient rate limits; one delayed second round
+    # and a punctuation-free variant recover them without changing the query's intent.
+    simplified = " ".join(re.sub(r'["“”「」『』()（）\[\]]', " ", query).split())
+    rounds = [(query, 0.0), (query, 1.5)] + ([(simplified, 0.0)] if simplified != query else [])
+    for attempt, (text, delay) in enumerate(rounds):
+        if delay and attempt:
+            time.sleep(delay)
+        for backend in ("auto", "bing", "duckduckgo"):
+            try:
+                results = DDGS(timeout=12).text(text, max_results=max_results, backend=backend)
+                if results:
+                    break
+            except Exception as exc:
+                errors.append(type(exc).__name__)
+        if results:
+            break
     if not results:
         raise RuntimeError(f"No search results after bounded backend fallback: {errors}")
     compact = [
@@ -151,24 +162,6 @@ def bounded_response_body(response) -> bytes:
         if len(body) > limit:
             raise ValueError(f'document exceeds the {limit // 1_000_000} MB download limit')
     return bytes(body)
-
-
-def label_simple_tables(soup):
-    """Retain column meaning when HTML is flattened, without guessing merged grids."""
-    for table in soup.find_all('table'):
-        rows=[row for row in table.find_all('tr') if row.find_parent('table') is table]
-        if not rows:continue
-        cells=rows[0].find_all(['th','td'],recursive=False)
-        if len(cells)<2 or any(cell.name!='th' for cell in cells):continue
-        if any(cell.get('rowspan','1')!='1' or cell.get('colspan','1')!='1'
-               for row in rows for cell in row.find_all(['th','td'],recursive=False)):continue
-        headers=[cell.get_text(' ',strip=True) for cell in cells]
-        if any(not header or len(header)>100 for header in headers) or len(set(headers))!=len(headers):continue
-        for row in rows[1:]:
-            cells=row.find_all(['th','td'],recursive=False)
-            if len(cells)!=len(headers):continue
-            for header,cell in zip(headers,cells):
-                cell.insert(0,header+': ')
 
 
 def bounded_document_text(text, query=None, limit=30000):
@@ -214,12 +207,7 @@ def fetch_url(url: str, link_query: str | None = None) -> str:
     soup = BeautifulSoup(body, "html.parser")
     for tag in soup(["script", "style", "noscript", "svg"]):
         tag.decompose()
-    label_simple_tables(soup)
-    text = "\n".join(line.strip() for line in soup.get_text("\n").splitlines() if line.strip())
-    if urlparse(url).hostname == 'validate.perfdrive.com' or any(marker in text.lower()[:1500] for marker in (
-        'verify you are human', 'checking your browser', 'enable javascript and cookies',
-        'performing security verification', 'please enable javascript to continue', 'verifying your browser')):
-        raise ValueError("Blocked by website challenge; no factual page evidence retrieved")
+    # Collect links before tables become text: table cells often hold archive links.
     links=''
     if link_query:
         from urllib.parse import urljoin
@@ -235,6 +223,13 @@ def fetch_url(url: str, link_query: str | None = None) -> str:
             return 100*(link_query.casefold() in value)+sum(t in value for t in terms)+3*bool(re.search(r'\.pdf(?:$|\?)|/pdf/|download.*pdf',value))
         candidates.sort(key=relevance,reverse=True)
         links='\nNAVIGATION LINKS (discovery only, not factual evidence):\n'+json.dumps(candidates[:60],ensure_ascii=False)
+    from .web_tables import render_tables
+    render_tables(soup)
+    text = "\n".join(line.strip() for line in soup.get_text("\n").splitlines() if line.strip())
+    if urlparse(url).hostname == 'validate.perfdrive.com' or any(marker in text.lower()[:1500] for marker in (
+        'verify you are human', 'checking your browser', 'enable javascript and cookies',
+        'performing security verification', 'please enable javascript to continue', 'verifying your browser')):
+        raise ValueError("Blocked by website challenge; no factual page evidence retrieved")
     return f"SOURCE: {url}\n{bounded_document_text(text, link_query)}{links}"
 
 

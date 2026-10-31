@@ -69,12 +69,13 @@ def test_explicit_exclusion_short_circuits_irrelevant_properties():
         render_list(report, spec)
 
 
-@pytest.mark.parametrize('second,verdict,expected', [
-    ('There were 42 research reports.', 'PASS', '42'),
-    ('There were 43 research reports.', 'PASS', 'Unable to verify answer'),
-    ('There were 42 research reports.', 'UNCERTAIN', '42'),
+@pytest.mark.parametrize('second,verdict,strict,expected', [
+    ('There were 42 research reports.', 'PASS', True, '42'),
+    ('There were 43 research reports.', 'PASS', True, 'Unable to verify answer'),
+    ('There were 43 research reports.', 'PASS', False, '42'),  # unresolved: incumbent wins the tie
+    ('There were 42 research reports.', 'UNCERTAIN', True, '42'),
 ])
-def test_supported_count_equivalence_not_arbitrary_conflict_resolution(second, verdict, expected):
+def test_supported_count_equivalence_not_arbitrary_conflict_resolution(second, verdict, strict, expected):
     import json
     from types import SimpleNamespace
     from gaia_agent.verification import compare_answers
@@ -84,7 +85,8 @@ def test_supported_count_equivalence_not_arbitrary_conflict_resolution(second, v
                               dict(id='B', verdict=verdict, evidence_ids=['E0'])])
     for row in report['candidates']:
         row['checks'] = dict(task_constraints=row['verdict'], source_identity='PASS', answer_value='PASS')
-    agent = SimpleNamespace(_plain_completion=lambda *a, **k: SimpleNamespace(
+    agent = SimpleNamespace(settings=SimpleNamespace(abstain_on_unverified=strict),
+                            _plain_completion=lambda *a, **k: SimpleNamespace(
         usage=None, choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(report)))]))
     question = 'How many research reports were published?'
     assert compare_answers(agent, question, '42', second, evidence, Trace('test', question)) == expected
