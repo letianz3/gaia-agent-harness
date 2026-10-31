@@ -12,6 +12,32 @@ def read_json_object(raw):
         return {}
 
 
+def materialize_support(report, evidence):
+    """The model selects evidence IDs; code copies the original source spans.
+
+    Selection proves provenance only. The critic still judges entailment, date,
+    identity and coverage; valid IDs alone never upgrade its verdict.
+    """
+    if 'evidence_ids' not in report:
+        return report
+    report = dict(report)
+    report['support'] = []
+    ids = report.get('evidence_ids')
+    try:
+        records = {row['id']: row for row in map(json.loads, evidence.splitlines())}
+        if not isinstance(ids, list) or not ids or len(ids) > 12:
+            return report
+        for key in ids:
+            if not isinstance(key, str) or key not in records or records[key]['kind'] not in {'observation', 'task_input'}:
+                return {**report, 'support': []}
+        for key in dict.fromkeys(ids):
+            spans = re.split(r'\[(?:separate span|relevant source windows|excerpt omitted)\]', records[key]['excerpt'])
+            report['support'].extend({'id': key, 'quote': span.strip()} for span in spans if len(span.strip()) >= 3)
+    except (ValueError, TypeError, KeyError):
+        report['support'] = []
+    return report
+
+
 def relevant_excerpt(value, focus, limit):
     """Rank literal source windows, never synthesize evidence or splice quotations."""
     stop={'what','which','where','when','that','this','with','from','their','about','under',

@@ -489,3 +489,39 @@ adjustment; no full 20-question or historical-roster run was performed in R11.
 The wrapper seeds prior successes at each loop start; simultaneous independent
 worker wrappers do not share a live global source ledger. This is a loop-level
 exploration control with history seeding, not a global network-request quota.
+
+## R12: historical records and bilingual identity joins
+
+The remaining historical-number task exposed several different failures:
+current rosters substituted for historical ones; native-language rows rejected
+because Roman surnames were absent; multiple JSON objects discarded as malformed;
+invented bilingual citations; and surname-only searches returning unrelated people.
+
+The historical workflow now seeds bounded multilingual discovery, retains prior
+observations when repairing, and separates row provenance from name identity.
+A first pass checks the dated source, original numeric rows and eligibility.
+Full native names are extracted from those observed rows. Bounded searches then
+retrieve bilingual profiles, and code copies nearby literal original/Roman name
+spans instead of asking the model to reconstruct quotations. The final pass
+requires the name bridge and computes exact numeric neighbors. Current identity
+profiles cannot establish historical jersey numbers. Short native-script table
+quotes have a scoped six-character minimum; other evidence retains its existing
+minimum. Malformed early JSON exits receive one structured formatting repair.
+
+Development trials are retained, including failures:
+
+| Runtime | Targeted outcome | Chat tokens | Next diagnosed issue |
+| --- | --- | --- | --- |
+| `92a9181` | Unverified | 60,779 | Multiple output objects discarded |
+| `7d76c8e` | Unverified | 130,636 | Claimed bilingual pages never fetched |
+| `536702e` | Unverified | 180,567 | Surname-only discovery matched other people |
+| `9afb0c4` | Unverified | 220,603 | Reconstructed quotations and failed identity retrieval |
+| `a353014` | Unverified | 139,059 | Missing optional native-name field blocked the extraction stage |
+| `bb133c8` | Correct | 166,291 | Ready for full-set regression evaluation |
+
+The successful targeted trace is `targeted_20261031T023259Z`. No benchmark
+answers or entity-specific URLs were added to runtime code. Name proximity is a
+provenance/identity check, not a general semantic proof. Historical validation
+still operates at year/season granularity: a precise mid-season date may require
+additional change-history evidence. These are development-set improvements, not
+held-out generalization results.

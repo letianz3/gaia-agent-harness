@@ -4,6 +4,19 @@ from gaia_agent.evidence import evidence_packet, has_valid_support
 from gaia_agent.verification import select_verified
 
 
+def test_evidence_selection_materializes_only_observed_spans_without_promoting_verdict():
+    from gaia_agent.evidence import materialize_support
+    packet='\n'.join(json.dumps(row) for row in [
+        {'id':'E1','kind':'observation','excerpt':'[1.0s] Question\n[2.0s] Response [separate span] Another literal span'},
+        {'id':'E2','kind':'search','excerpt':'Search snippet'}])
+    report=materialize_support({'verdict':'UNCERTAIN','evidence_ids':['E1']},packet)
+    assert report['verdict']=='UNCERTAIN'
+    assert has_valid_support(json.dumps(report),packet)
+    assert len(report['support'])==2
+    for ids in (['E2'],['missing'],['E1','missing'],[]):
+        assert materialize_support({'verdict':'PASS','evidence_ids':ids},packet)['support']==[]
+
+
 def test_recovery_deduplicates_successful_reads_but_allows_new_queries_and_retries():
     from types import SimpleNamespace
 

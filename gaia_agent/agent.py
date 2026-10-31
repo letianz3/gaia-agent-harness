@@ -817,14 +817,15 @@ use FAIL only for a concrete contradiction with the task or supplied evidence. I
 insufficient to verify factual correctness, use UNCERTAIN rather than FAIL.
 
 Search snippets are discovery leads, not verified facts. PASS requires direct observations
-covering every requested item, date, identity and exclusion. Cite exact excerpts that support
+covering every requested item, date, identity and exclusion. Select evidence IDs that support
 the answer. Missing coverage is UNCERTAIN; never fill gaps from memory. For FAIL identify a
 specific contradiction or explicit output violation. Quotes must actually entail the claim.
 Task-input records include the original supplied data and any audio transcript. They can
 support answers derivable from that data, but do not establish external facts merely asked
 about in the question. Check transcripts literally rather than substituting synonyms.
-Quotes must be short CONTIGUOUS substrings (about 5-20 words), with no ellipsis,
-paraphrase or escaped quote wrappers. Use separate support entries for separate spans.
+Return evidence_ids referencing the supplied original observations. The program copies their
+literal source spans; do not reconstruct or paraphrase quotations. Selecting an existing ID
+does NOT establish truth: inspect its actual text for every required relation and constraint.
 For lists and totals, check every included/excluded category, not only the arithmetic.
 If existing evidence proves a correction, supply corrected_answer and repair_answer.
 Choose acquire_evidence only when a SPECIFIC missing fact can be obtained with a
@@ -835,7 +836,7 @@ Respond ONLY as JSON:
 {{"verdict": "PASS" or "FAIL" or "UNCERTAIN", "feedback": "brief actionable reason",
 "next_action": "none" or "repair_answer" or "acquire_evidence",
 "target": "specific missing fact and source/tool, or empty", "corrected_answer": "or empty",
-"support": [{{"id": "E123", "quote": "exact excerpt from the observation"}}]}}.
+"evidence_ids": ["E123"]}}.
 """
         started = time.monotonic()
         response = self._plain_completion(
@@ -855,6 +856,9 @@ Respond ONLY as JSON:
         raw = response.choices[0].message.content or ""
         verdict, feedback, parse_failed = parse_critique(raw)
         detail = read_json_object(raw)
+        from .evidence import materialize_support
+        detail = materialize_support(detail, evidence)
+        raw = __import__('json').dumps(detail, ensure_ascii=False)
         citation_failed = False
         if verdict == "PASS" and not has_valid_support(raw, evidence):
             verdict = "UNCERTAIN"
