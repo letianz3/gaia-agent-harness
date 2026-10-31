@@ -58,11 +58,15 @@ def render_list(report, spec):
         if spec['mode'] == 'classify' and (not isinstance(excluded, list) or len(excluded) != len(exclusions)
                 or any(type(x) is not bool for x in excluded)):
             raise ValueError('every item must decide every explicit exclusion criterion')
+        # A validated explicit exclusion is decisive. Irrelevant optional
+        # properties must not block the whole list or trigger reclassification.
+        if any(excluded):
+            continue
         include=row['include']
         policy=POLICIES.get(spec.get('policy_id'))
         if policy is not None:
             include=policy.includes(row)
-        if include and not any(excluded):
+        if include:
             selected.append(text)
     if spec['mode'] == 'classify' and set(names) != set(spec['items']):
         raise ValueError('classify EVERY original input item exactly once, without adding items')

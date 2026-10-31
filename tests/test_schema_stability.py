@@ -57,6 +57,48 @@ def test_life_stage_never_overrides_uncertain_visual_identity():
         census_count({'frames': [dict(timestamp=1, groups=[group])]}, [1])
 
 
+def test_explicit_exclusion_short_circuits_irrelevant_properties():
+    spec = dict(mode='classify', items=['sample leaf', 'excluded object'],
+                question='Exclude synthetic objects', policy_id='botanical_nonfruit_parts')
+    report = dict(exclusion_criteria=['synthetic objects'], items=[
+        dict(text='sample leaf', include=True, basis='leaf', plant_part='leaf', excluded_by=[False]),
+        dict(text='excluded object', include=False, basis='synthetic', excluded_by=[True])])
+    assert render_list(report, spec) == 'sample leaf'
+    report['items'][1]['excluded_by'] = [False]
+    with pytest.raises(ValueError, match='plant_part'):
+        render_list(report, spec)
+
+
+@pytest.mark.parametrize('second,verdict,expected', [
+    ('There were 42 research reports.', 'PASS', '42'),
+    ('There were 43 research reports.', 'PASS', 'Unable to verify answer'),
+    ('There were 42 research reports.', 'UNCERTAIN', '42'),
+])
+def test_supported_count_equivalence_not_arbitrary_conflict_resolution(second, verdict, expected):
+    import json
+    from types import SimpleNamespace
+    from gaia_agent.verification import compare_answers
+    from gaia_agent.tracing import Trace
+    evidence = json.dumps(dict(id='E0', kind='observation', excerpt='The archive records 42 research reports.'))
+    report = dict(candidates=[dict(id='A', verdict='PASS', evidence_ids=['E0']),
+                              dict(id='B', verdict=verdict, evidence_ids=['E0'])])
+    for row in report['candidates']:
+        row['checks'] = dict(task_constraints=row['verdict'], source_identity='PASS', answer_value='PASS')
+    agent = SimpleNamespace(_plain_completion=lambda *a, **k: SimpleNamespace(
+        usage=None, choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(report)))]))
+    question = 'How many research reports were published?'
+    assert compare_answers(agent, question, '42', second, evidence, Trace('test', question)) == expected
+
+
+def test_review_aggregate_cannot_override_failed_or_missing_constraint():
+    from gaia_agent.verification import aggregate_checks
+    row = dict(verdict='PASS', checks=dict(task_constraints='FAIL', source_identity='PASS', answer_value='PASS'))
+    assert aggregate_checks(row)['verdict'] == 'FAIL'
+    assert row['verdict'] == 'PASS'
+    del row['checks']['task_constraints']
+    assert aggregate_checks(row)['verdict'] == 'UNCERTAIN'
+
+
 def test_classification_repair_keeps_valid_rows_and_does_not_run_blanket_audit():
     import json
     from types import SimpleNamespace

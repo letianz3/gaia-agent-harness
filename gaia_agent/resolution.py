@@ -291,10 +291,8 @@ def solve_temporal_neighbors(agent,question,registry,trace):
         report=read_json_object(raw)
         try:
             temporal_neighbors(report,year,trace.events,check_names=False)
-        except (ValueError,TypeError):pass
-        else:
             report=resolve_roster_names(agent,report,registry,trace)
-        try:answer=temporal_neighbors(report,year,trace.events)
+            answer=temporal_neighbors(report,year,trace.events)
         except (ValueError,TypeError) as exc:
             trace.add('temporal_contract_rejected',reason=str(exc),report=report)
             from .evidence import evidence_packet
