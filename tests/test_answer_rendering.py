@@ -29,3 +29,15 @@ import pytest  # noqa: E402
 ])
 def test_quantity_answers_drop_only_units_echoed_from_the_question(question, answer, expected):
     assert render_final_answer(question, answer) == expected
+
+
+@pytest.mark.parametrize('question,answer,expected', [
+    ('What is the first name of the only recipient?', 'Claus Peter', 'Claus'),
+    ('What is the first name of the only recipient?', 'Jean-Claude', 'Jean-Claude'),
+    ('Give only the first name.', 'Wojciech', 'Wojciech'),
+    ('What is the first name of the recipient?', 'Unable to verify answer', 'Unable to verify answer'),
+    ('What are the first names of both authors?', 'Ann Lee', 'Ann Lee'),
+    ('What is the last name of the author?', 'van Gogh', 'van Gogh'),
+])
+def test_first_name_requests_take_one_given_name(question, answer, expected):
+    assert render_final_answer(question, answer) == expected

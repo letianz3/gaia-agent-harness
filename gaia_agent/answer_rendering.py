@@ -3,7 +3,23 @@ import re
 
 
 def render_final_answer(question, answer):
-    return render_quantity(question, render_count(question, answer))
+    return render_given_name(question, render_quantity(question, render_count(question, answer)))
+
+
+def render_given_name(question, answer):
+    """A request for "the first name" takes one given name.
+
+    Space-separated given names ("Claus Peter") are reduced to the first; a
+    hyphenated compound is one name and stays intact. Requests for several
+    names, full names or surnames are left alone, as are non-name answers.
+    """
+    q=question.casefold()
+    if not re.search(r'\bfirst name\b',q) or re.search(r'first names|full name|first and last|given names',q):
+        return answer
+    words=answer.strip().split()
+    if not 2<=len(words)<=3 or not all(re.fullmatch(r"[^\W\d_]+(?:-[^\W\d_]+)*",w) and w[0].isupper() for w in words):
+        return answer
+    return words[0]
 
 
 def render_count(question, answer):
