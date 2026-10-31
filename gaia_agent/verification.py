@@ -1,7 +1,8 @@
 """Evidence-based comparison: solver chronology never establishes correctness."""
 import json
 import re
-from .evidence import has_valid_support,read_json_object
+
+from .evidence import has_valid_support, read_json_object
 
 UNVERIFIED='Unable to verify answer'
 

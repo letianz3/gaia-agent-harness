@@ -16,13 +16,13 @@ def relevant_excerpt(value, focus, limit):
     """Rank literal source windows, never synthesize evidence or splice quotations."""
     stop={'what','which','where','when','that','this','with','from','their','about','under',
           'have','only','give','answer','number','find','were','does','they','into','mentioned'}
-    terms=set(t.casefold() for text in focus for t in re.findall(r'[\w-]{4,}',text) if t.casefold() not in stop)
+    terms={t.casefold() for text in focus for t in re.findall(r'[\w-]{4,}',text) if t.casefold() not in stop}
     phrases=[text.strip() for text in focus[1:] if 3<=len(text.strip())<=150]
     hits=[]
     for term in terms:
-        hits.extend(m.start() for m in list(re.finditer(re.escape(term),value,re.I))[:20])
+        hits.extend(m.start() for m in list(re.finditer(re.escape(term),value,re.IGNORECASE))[:20])
     for phrase in phrases:
-        hits.extend(m.start() for m in list(re.finditer(re.escape(phrase),value,re.I))[:20])
+        hits.extend(m.start() for m in list(re.finditer(re.escape(phrase),value,re.IGNORECASE))[:20])
     ranked=[]
     for pos in sorted(set(hits)):
         start=max(0,pos-200); end=min(len(value),pos+500); text=value[start:end]; lower=text.casefold()

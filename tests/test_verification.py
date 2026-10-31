@@ -1,18 +1,20 @@
 import json
-from gaia_agent.evidence import evidence_packet,has_valid_support
+
+from gaia_agent.evidence import evidence_packet, has_valid_support
 from gaia_agent.verification import select_verified
 
 
 def test_recovery_deduplicates_successful_reads_but_allows_new_queries_and_retries():
     from types import SimpleNamespace
+
     from gaia_agent.verification import RecoveryRegistry
     calls=[]
     def execute(name,args):
         calls.append((name,args))
         return 'new source', True
     trace=SimpleNamespace(events=[
-        dict(name='fetch_url',arguments='{"url":"https://example.org/a"}',succeeded=True,result='old source'),
-        dict(name='fetch_url',arguments='{"url":"https://example.org/b"}',succeeded=False,result='timeout')])
+        {'name': 'fetch_url','arguments': '{"url":"https://example.org/a"}','succeeded': True,'result': 'old source'},
+        {'name': 'fetch_url','arguments': '{"url":"https://example.org/b"}','succeeded': False,'result': 'timeout'}])
     proxy=RecoveryRegistry(SimpleNamespace(execute=execute),trace,'source question')
     value,ok=proxy.execute('fetch_url','{ "url": "https://example.org/a" }')
     assert ok and 'ALREADY OBSERVED' in value and not calls
@@ -21,7 +23,7 @@ def test_recovery_deduplicates_successful_reads_but_allows_new_queries_and_retri
     assert len(calls)==2
 
 
-def observation(text):return dict(type='tool_call',name='fetch_url',succeeded=True,result=text)
+def observation(text):return {'type': 'tool_call','name': 'fetch_url','succeeded': True,'result': text}
 
 
 def test_middle_passage_survives_focused_packet_and_noise():
@@ -47,7 +49,7 @@ def test_metadata_keyword_density_cannot_evict_answer_passage():
 
 
 def test_provenance_allows_layout_whitespace_not_paraphrase_or_joined_spans():
-    p=json.dumps(dict(id='E0',kind='observation',excerpt='award\n ZX-8912 [separate span] unrelated'))
+    p=json.dumps({'id': 'E0','kind': 'observation','excerpt': 'award\n ZX-8912 [separate span] unrelated'})
     def check(q):return has_valid_support(json.dumps({'support':[{'id':'E0','quote':q}]}),p)
     assert check('award ZX-8912')
     assert not check('grant ZX-8912')
@@ -55,19 +57,19 @@ def test_provenance_allows_layout_whitespace_not_paraphrase_or_joined_spans():
 
 
 def test_no_incumbent_privilege_and_no_unsupported_pass():
-    p=json.dumps(dict(id='E0',kind='observation',excerpt='Researcher ABC received award ZX-8912.'))
+    p=json.dumps({'id': 'E0','kind': 'observation','excerpt': 'Researcher ABC received award ZX-8912.'})
     supported={'verdict':'PASS','support':[{'id':'E0','quote':'ABC received award ZX-8912'}]}
     uncertain={'verdict':'UNCERTAIN','support':[]}
     assert select_verified({'candidates':[dict(supported,id='A'),dict(uncertain,id='B')]},p)=='A'
     assert select_verified({'candidates':[dict(uncertain,id='A'),dict(supported,id='B')]},p)=='B'
     assert select_verified({'candidates':[dict(uncertain,id='A'),dict(uncertain,id='B')]},p) is None
     assert select_verified({'candidates':[dict(supported,id='A'),dict(supported,id='B')]},p) is None
-    assert select_verified({'candidates':[dict(uncertain,id='A'),dict(id='B',verdict='PASS',support=[])]},p) is None
+    assert select_verified({'candidates':[dict(uncertain,id='A'),{'id': 'B','verdict': 'PASS','support': []}]},p) is None
 
 
 def test_navigation_is_bounded_and_not_factual_support():
-    from gaia_agent.verification import navigation_evidence
     from gaia_agent.tracing import Trace
+    from gaia_agent.verification import navigation_evidence
     trace=Trace('test','Which chapter mentions velocity?')
     for i in range(4):trace.add('tool_call',name='fetch_url',succeeded=True,result=f'SOURCE: https://example.org/{i}\nvelocity chapter')
     class Registry:

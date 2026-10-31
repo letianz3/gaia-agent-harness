@@ -401,3 +401,48 @@ Raw task-level records remain local under `.runs/`. Public reports contain
 aggregate metrics and failure descriptions, not answer keys. Chat-token counts
 exclude audio transcription usage; wall-clock run time and summed agent latency
 are different quantities. An unset price is unknown cost, not zero cost.
+
+## R10: bounded verification experiment
+
+Scope: the fluctuating textbook surname and paper funding-number tasks only.
+The historical roster task and full 20-question evaluation were not rerun.
+R9 is preserved by `checkpoint/r9-before-verifier-repair`; changes are isolated
+on `experiment/evidence-review-r10` and are not promoted to main.
+
+The old verifier's head/tail excerpts omitted answer-bearing passages in the
+middle of successfully fetched sources. Replacement candidates were then judged
+against incomplete evidence while an unverified incumbent could survive.
+R10 retrieves literal question/candidate-related windows, compares both candidates
+against the same packet without incumbent priority, checks contiguous quotations,
+and reports unresolved cases rather than claiming verification. This checks quote
+provenance in code; semantic entailment still depends on the model.
+
+Recovery uses bounded navigation from observed URLs, treats navigation as
+discovery rather than proof, detects additional challenge pages, and reuses compact
+observations for identical successful read-only calls. Failed requests remain
+retryable. The final repair loop has at most five turns rather than three.
+No answer lookup or task-ID routing was added.
+
+All batches used fresh run-local caches and the same two questions:
+
+| Revision | Individual answers correct | Both correct per round | Chat tokens |
+| --- | --- | --- | --- |
+| `f803b34`: relevant evidence and candidate comparison | 4/6 | 1/3 | 353,556 |
+| `79301c4`: bounded navigation and strict unresolved outcome | 3/6 | 1/3 | 352,598 |
+| `4585acc`: recovery history and duplicate-request control | 5/6 | 2/3 | 320,363 |
+
+The final three runs are `targeted_20261031T015818Z`,
+`targeted_20261031T015855Z`, and `targeted_20261031T015933Z`.
+Paper funding passed 3/3; textbook lookup passed 2/3. The remaining failure fetched
+a same-named chapter from a different book, varied navigation queries on that
+page, and then stopped without obtaining the requested passage. No correct
+candidate was rejected in this failure. The next acquisition improvement should
+check source/book identity before investing more calls in a chapter.
+
+Separately, replaying saved raw sources with both candidate orders selected the
+supported answer 4/4 times. This validates evidence handling only, not end-to-end
+retrieval. Fresh results above include every failure, with no best-of-run mixing.
+These small development-set samples do not establish stable accuracy or causality.
+All 110 unit tests pass. Repository-wide Ruff still has 135 pre-existing findings
+(also present at R9); the new verification files pass Ruff. Formatting-only cleanup
+after `4585acc` does not constitute a new model evaluation.

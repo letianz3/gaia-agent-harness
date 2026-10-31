@@ -39,6 +39,7 @@ failed experiments are retained in Git, without mixing answers across runs.
 | R8a · `83ea796` | 17/20 | 390,706 | Inspect video segments individually, classify plant parts before applying rules, and enforce dated roster evidence. | Video and botanical targets repaired; historical roster remains unresolved. An unrelated webpage answer and terminal punctuation regressed. |
 | R8b · `b1e5982` | **18/20*** | 390,706 | Normalize sentence punctuation on single-word answer contracts. | Re-score the same complete answer set; no new model calls or answer-set mixing. Historical roster and chemistry-page lookup remain unresolved. |
 | R9 · `6086685` | **18/20** | 497,302 | Isolate optional domain policies and strategy dispatch; narrow applicability and allow dated retrospective sources. | Fresh full run preserves score. Six non-GAIA smoke tasks have correct content (5/6 exact strings). Cost increased; broad generalization is not established. |
+| R10 experimental · `4585acc` | Targeted: **5/6** | 320,363 | Retrieve answer-relevant original passages, compare candidates equally, and avoid duplicate recovery requests. | Three fresh runs of two fluctuating tasks: both correct in 2/3 runs. Source selection still fails once; not a new full-set score. |
 
 R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
 recipe wording and chess perception-to-engine execution. The actor answer also

@@ -871,7 +871,7 @@ Respond ONLY as JSON:
         round_number: int,
         evidence: str = "",
     ) -> str:
-        from .verification import navigation_evidence, RecoveryRegistry
+        from .verification import RecoveryRegistry, navigation_evidence
         navigation=navigation_evidence(registry,trace,question)
         recovery_registry = RecoveryRegistry(registry, trace, question)
         revision_task = (
