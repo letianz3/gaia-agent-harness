@@ -6,6 +6,42 @@ from .evidence import has_valid_support,read_json_object
 UNVERIFIED='Unable to verify answer'
 
 
+class RecoveryRegistry:
+    """Avoid spending recovery on identical successful read-only requests."""
+    def __init__(self, registry, trace, question):
+        self.registry, self.question = registry, question
+        self.seen = {}
+        for event in trace.events:
+            if event.get('succeeded') and event.get('name') in {'fetch_url', 'search_web'}:
+                key = self.key(event['name'], event.get('arguments', '{}'))
+                self.seen[key] = event.get('result', '')
+
+    @staticmethod
+    def key(name, arguments):
+        try:
+            return name, json.dumps(json.loads(arguments), sort_keys=True)
+        except (ValueError, TypeError):
+            return name, arguments
+
+    def __getattr__(self, name):
+        return getattr(self.registry, name)
+
+    def execute(self, name, arguments):
+        key = self.key(name, arguments)
+        if key in self.seen:
+            from .evidence import relevant_excerpt
+            return ('ALREADY OBSERVED: this identical request adds no new evidence. '
+                    'Use a different source or a more focused query. Cached excerpt:\n'
+                    + relevant_excerpt(self.seen[key], (self.question,), 1800)[0]), True
+        result, ok = self.registry.execute(name, arguments)
+        if ok and name in {'fetch_url', 'search_web'}:
+            self.seen[key] = result
+        return result, ok
+
+    def history(self):
+        return json.dumps([{'tool': n, 'arguments': a} for n, a in self.seen], ensure_ascii=False)
+
+
 def navigation_evidence(registry,trace,question):
     """At most two real source pages; navigation never masquerades as proof."""
     if registry is None:return ''

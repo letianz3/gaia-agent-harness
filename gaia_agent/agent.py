@@ -871,9 +871,11 @@ Respond ONLY as JSON:
         round_number: int,
         evidence: str = "",
     ) -> str:
-        from .verification import navigation_evidence
+        from .verification import navigation_evidence, RecoveryRegistry
         navigation=navigation_evidence(registry,trace,question)
+        recovery_registry = RecoveryRegistry(registry, trace, question)
         revision_task = (
+            'Already completed requests; do not repeat these: '+recovery_registry.history()+'\n'
             'Actual source navigation links (discovery only): '+navigation+'\n'
             'Follow relevant listed chapter/paper/PDF links; do not invent their URL paths. '
             f"Previous proposed answer: {answer}\n"
@@ -891,9 +893,9 @@ Respond ONLY as JSON:
                     "content": self._subtask_user_content(task_context, revision_task),
                 },
             ],
-            registry,
+            recovery_registry,
             trace,
-            min(3, self.settings.planning_turns_per_subtask),
+            min(5, self.settings.planning_turns_per_subtask),
             "revision",
             round_number,
             failure_tracker,

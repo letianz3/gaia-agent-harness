@@ -3,6 +3,24 @@ from gaia_agent.evidence import evidence_packet,has_valid_support
 from gaia_agent.verification import select_verified
 
 
+def test_recovery_deduplicates_successful_reads_but_allows_new_queries_and_retries():
+    from types import SimpleNamespace
+    from gaia_agent.verification import RecoveryRegistry
+    calls=[]
+    def execute(name,args):
+        calls.append((name,args))
+        return 'new source', True
+    trace=SimpleNamespace(events=[
+        dict(name='fetch_url',arguments='{"url":"https://example.org/a"}',succeeded=True,result='old source'),
+        dict(name='fetch_url',arguments='{"url":"https://example.org/b"}',succeeded=False,result='timeout')])
+    proxy=RecoveryRegistry(SimpleNamespace(execute=execute),trace,'source question')
+    value,ok=proxy.execute('fetch_url','{ "url": "https://example.org/a" }')
+    assert ok and 'ALREADY OBSERVED' in value and not calls
+    proxy.execute('fetch_url','{"url":"https://example.org/b"}')
+    proxy.execute('search_web','{"query":"new query"}')
+    assert len(calls)==2
+
+
 def observation(text):return dict(type='tool_call',name='fetch_url',succeeded=True,result=text)
 
 
