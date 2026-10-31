@@ -20,12 +20,12 @@ def test_counts_distinct_species_within_frame_not_across_frames():
  def group(key):return dict(species_key=key,visual_features='visible trait',location='left',uncertain=False)
  report={'frames':[{'timestamp':1,'groups':[group('A'),group('A'),group('B')]},{'timestamp':2,'groups':[group('C')]}]}
  assert census_count(report,[1,2])==2
- report['frames'][0]['groups'][0]['uncertain']=True
- with pytest.raises(ValueError):census_count(report,[1,2])
+ report['frames'][0]['groups'][2]['uncertain']=True  # an uncertain group cannot add a species
+ assert census_count(report,[1,2],details=True)=={'maximum':1,'excluded_groups':1,'lower_bound':True,'frames_without_census':[]}
 
-def test_census_rejects_missing_or_invented_frame():
+def test_census_ignores_invented_frames_and_reports_missing_ones():
  with pytest.raises(ValueError):census_count({'frames':[{'timestamp':9,'groups':[]}]},[1])
- with pytest.raises(ValueError):census_count({'frames':[{'timestamp':1,'groups':[]}]},[1,2])
+ assert census_count({'frames':[{'timestamp':1,'groups':[]}]},[1,2],details=True)['frames_without_census']==[2]
 
 def roster():
  return dict(year=2018,source_url='https://example.org/archive',time_quote='Official 2018 season roster',target_number=8,rows=[

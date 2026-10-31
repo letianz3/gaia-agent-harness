@@ -41,25 +41,40 @@ def census_identity(group):
     return key
 
 
-def census_count(report, timestamps):
+def census_count(report, timestamps, details=False):
+    """Maximum distinct certain species in any one inspected frame.
+
+    Degrades per group, not per call: an uncertain or under-described group
+    cannot add a distinct species, so it is excluded from the count and
+    reported, which makes the result a lower bound rather than a failure.
+    Frames with unknown or duplicate timestamps are ignored; at least one
+    valid frame is required.
+    """
     frames=report.get('frames')
     if not isinstance(frames,list) or not frames:raise ValueError('frame census required')
-    counts=[]; seen=set()
+    counts={}; excluded=0
     for frame in frames:
+        if not isinstance(frame,dict):continue
         t=frame.get('timestamp'); groups=frame.get('groups')
-        if t not in timestamps or t in seen:raise ValueError('unknown or duplicate timestamp')
-        seen.add(t)
-        if not isinstance(groups,list):raise ValueError('groups required')
+        if t not in timestamps or t in counts or not isinstance(groups,list):continue
         ids=set()
         for group in groups:
-            key=group.get('species_key')
-            if not isinstance(key,str) or not key.strip() or not group.get('visual_features') or not group.get('location'):
-                raise ValueError('each group needs identity, visible features and location')
-            if group.get('uncertain') is not False:raise ValueError('unresolved visual identity')
-            ids.add(census_identity(group))
-        counts.append(len(ids))
-    if seen!=set(timestamps):raise ValueError('every inspected frame needs a census')
-    return max(counts)
+            key=group.get('species_key') if isinstance(group,dict) else None
+            if (not isinstance(key,str) or not key.strip() or not group.get('visual_features')
+                    or not group.get('location') or group.get('uncertain') is not False):
+                excluded+=1
+                continue
+            try:
+                ids.add(census_identity(group))
+            except ValueError:
+                excluded+=1
+        counts[t]=len(ids)
+    if not counts:raise ValueError('no inspected frame has a valid census')
+    maximum=max(counts.values())
+    if not details:
+        return maximum
+    return {'maximum':maximum,'excluded_groups':excluded,'lower_bound':excluded>0,
+            'frames_without_census':sorted(set(timestamps)-set(counts))}
 
 
 CENSUS_CANDIDATES_PER_SHEET = 2
@@ -104,13 +119,16 @@ def inspect_census(agent, question, sheets, video_path, media_dir, trace):
             'Mark uncertain true when identities cannot be separated. Do not output a count. '
             'Image timestamps, in order: '+json.dumps(stamps)+' Task: '+question,
             [p for _,p in batch],trace,'video_census_detail',json_output=True))
-        census_count(report,stamps)  # validate every batch on its own timestamps
-        reports.extend(report['frames'])
+        if isinstance(report.get('frames'),list):
+            reports.extend(f for f in report['frames'] if isinstance(f,dict) and f.get('timestamp') in stamps)
     merged={'frames':reports}
-    count=census_count(merged,[t for t,_ in frames])
-    trace.add('video_census_validated',report=merged,maximum=count,scope='sampled-frame counts; species identities remain visual-model judgments')
+    summary=census_count(merged,[t for t,_ in frames],details=True)
+    count=summary['maximum']
+    trace.add('video_census_validated',report=merged,maximum=count,**{k:v for k,v in summary.items() if k!='maximum'},
+              scope='sampled-frame counts; species identities remain visual-model judgments')
+    note=('; '+str(summary['excluded_groups'])+' uncertain groups not counted, so this is a lower bound') if summary['lower_bound'] else ''
     return json.dumps({'maximum_observed_species':count,'frames':merged['frames'],
-                       'limitation':'sampled frames only; not an exhaustive proof of the whole-video maximum'},ensure_ascii=False)
+                       'limitation':'sampled frames only; not an exhaustive proof of the whole-video maximum'+note},ensure_ascii=False)
 
 
 def temporal_source_conflict(raw, year):

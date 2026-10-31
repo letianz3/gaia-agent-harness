@@ -53,8 +53,8 @@ def test_census_collapses_stage_annotations_not_distinct_species():
 
 def test_life_stage_never_overrides_uncertain_visual_identity():
     group = dict(species_key='Example_duck_chick', visual_features='unclear', location='left', uncertain=True)
-    with pytest.raises(ValueError):
-        census_count({'frames': [dict(timestamp=1, groups=[group])]}, [1])
+    summary = census_count({'frames': [dict(timestamp=1, groups=[group])]}, [1], details=True)
+    assert summary['maximum'] == 0 and summary['lower_bound']  # never counted; reported as a lower bound
 
 
 def test_explicit_exclusion_short_circuits_irrelevant_properties():

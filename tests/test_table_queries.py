@@ -193,3 +193,15 @@ def test_abstaining_challenger_cannot_replace_a_concrete_incumbent(monkeypatch):
     trace = Trace('t', 'Who nominated the only Featured Article about a dinosaur promoted in November 2016?')
     assert agent._recover_answer(trace.question, trace.question, 'FunkMonk', None, trace, None, '') == 'FunkMonk'
     assert any(e['type'] == 'best_effort_selection' and e['answer'] == 'FunkMonk' for e in trace.events)
+
+
+@pytest.mark.parametrize('text', ['No verifiable information available.', 'Insufficient evidence.',
+                                  'There is no direct information in the video.', 'N/A',
+                                  'The answer cannot be determined from the sources.'])
+def test_common_abstention_phrasings_are_recognized(text):
+    assert is_abstention(text)
+
+
+@pytest.mark.parametrize('text', ['No', 'Nova Scotia', 'Information Age', 'None of the above', '3'])
+def test_ordinary_answers_are_not_abstentions(text):
+    assert not is_abstention(text)

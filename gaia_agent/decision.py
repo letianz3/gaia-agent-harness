@@ -12,7 +12,12 @@ import re
 
 UNVERIFIED = 'Unable to verify answer'
 CHECK_SCORES = {'PASS': 1, 'UNCERTAIN': 0, 'FAIL': -2}
-_ABSTENTION = re.compile(r'^\s*(?:unable to|cannot|could not|i (?:cannot|can\'t|could not)|unknown\b|not (?:found|available|determinable))', re.I)
+_ABSTENTION = re.compile(
+    r'^\s*(?:unable to|cannot|could not|i (?:cannot|can\'t|could not|do not know)|unknown\b|n/?a\b|none found'
+    r'|not (?:found|available|determinable|enough|sufficient|verifiable)'
+    r'|no (?:verifiable |reliable |direct |sufficient |available )?(?:information|evidence|data|answer|record)s?\b'
+    r'|insufficient\b|there is no (?:verifiable |direct |available )?(?:information|evidence|data)'
+    r'|(?:the )?(?:answer|information) (?:is |was )?(?:not available|unavailable|cannot be determined))', re.I)
 
 
 def is_abstention(answer):

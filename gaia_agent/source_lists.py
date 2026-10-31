@@ -107,6 +107,42 @@ def render_list(report, spec):
     return ', '.join(sorted(selected, key=str.casefold))
 
 
+def coerce_flags(value, criteria):
+    """One boolean per criterion, from any unambiguous representation; otherwise unchanged.
+
+    Accepted: booleans in criterion order; the list of matched criteria quoted
+    exactly; or an object keyed by every criterion. Anything ambiguous (for
+    example an empty list, which could mean "none matched" or "not decided")
+    is left for the validator to reject with an itemized repair request.
+    """
+    if not criteria or not isinstance(criteria, list):
+        return value
+    norm = lambda text: ' '.join(str(text).split()).casefold()
+    keys = [norm(c) for c in criteria]
+    if isinstance(value, list) and value and all(isinstance(v, str) for v in value):
+        named = {norm(v) for v in value}
+        if named <= set(keys):
+            return [key in named for key in keys]
+    if isinstance(value, dict):
+        mapped = {norm(k): v for k, v in value.items()}
+        if set(mapped) == set(keys) and all(type(v) is bool for v in mapped.values()):
+            return [mapped[key] for key in keys]
+    return value
+
+
+def normalize_exclusion_flags(report, previous=None):
+    criteria = report.get('exclusion_criteria')
+    if not isinstance(criteria, list) or not criteria:
+        criteria = (previous or {}).get('exclusion_criteria') if isinstance(previous, dict) else None
+    rows = report.get('items')
+    if not isinstance(rows, list):
+        return report
+    result = dict(report)
+    result['items'] = [dict(row, excluded_by=coerce_flags(row.get('excluded_by'), criteria))
+                       if isinstance(row, dict) and 'excluded_by' in row else row for row in rows]
+    return result
+
+
 def preserve_valid_fields(previous, repaired, spec):
     """Schema repair may fill invalid fields, never silently reclassify valid ones.
 
@@ -185,9 +221,9 @@ def solve_source_list(agent, question, context, trace, registry=None):
     prompt = (
         'Handle a source-grounded list task. Return JSON {"items":['
         '{"text":"exact original item/ingredient phrase","include":true,"plant_part":"required only when the selected policy requests this field",'
-        '"basis":"brief factual basis","excluded_by":[]}]}. '
+        '"basis":"brief factual basis","excluded_by":{"<exact exclusion criterion>":false}}]}. '
         'For classification: also return exclusion_criteria (copy literal exact phrases specifying exclusions from the question, never paraphrase or add rules). '
-        'For EVERY input item, return excluded_by (one boolean per exclusion criterion). '
+        'For EVERY input item, return excluded_by as an object with EVERY exclusion criterion as a key and true/false as its value. '
         'First evaluate whether each item matches each exclusion definition, independently of whether it is '
         'commonly called a member of the target category. The program will remove ANY item that matches '
         'ANY exclusion, even if include is true. Include every input item exactly once. '
@@ -216,6 +252,7 @@ def solve_source_list(agent, question, context, trace, registry=None):
             report = json.loads(raw)
             if not isinstance(report, dict):
                 raise ValueError('response must be a JSON object')
+            report = normalize_exclusion_flags(report, previous)
             if previous is not None:
                 report = preserve_valid_fields(previous, report, spec)
                 trace.add('source_list_schema_repair', report=report,

@@ -91,3 +91,14 @@ def test_repair_names_missing_items_and_merges_partial_answers():
     answer = solve_source_list(agent, question, question, Trace('t', question))
     assert answer == 'fresh basil, lettuce, sweet potatoes'
     assert '"milk"' in prompts[1] and '"eggs"' in prompts[1] and '"fresh basil"' not in prompts[1]
+
+
+def test_equivalent_flag_representations_are_normalized_but_ambiguity_is_not():
+    from gaia_agent.source_lists import coerce_flags
+    criteria = ['no botanical fruits', 'no nuts']
+    assert coerce_flags([True, False], criteria) == [True, False]
+    assert coerce_flags(['No botanical  fruits'], criteria) == [True, False]  # matched criteria quoted
+    assert coerce_flags({'no nuts': True, 'no botanical fruits': False}, criteria) == [False, True]
+    assert coerce_flags([], criteria) == []  # ambiguous: left for the validator
+    assert coerce_flags(['something else'], criteria) == ['something else']
+    assert coerce_flags({'no nuts': True}, criteria) == {'no nuts': True}  # incomplete object
