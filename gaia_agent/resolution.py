@@ -124,6 +124,28 @@ def temporal_neighbors(report, year, events, *, check_names=True):
     return by_number[target-1]+', '+by_number[target+1]
 
 
+def literal_name_bridge(events, native, surname):
+    """Copy a nearby bilingual span verbatim instead of asking a model to quote it."""
+    for event in events:
+        raw=event.get('result','')
+        if event.get('name')!='fetch_url' or not event.get('succeeded') or not raw.startswith('SOURCE: '):continue
+        source,body=raw.split('\n',1)
+        body=body.split('\nNAVIGATION LINKS',1)[0].split('\n\nHARNESS SOURCE CHECK',1)[0]
+        chars=[];positions=[]
+        for index,char in enumerate(body):
+            if not char.isspace():
+                chars.extend(char.casefold());positions.extend([index]*len(char.casefold()))
+        compact=''.join(chars)
+        left=re.sub(r'\s+','',native).casefold();right=re.sub(r'\s+','',surname).casefold()
+        for match in re.finditer(re.escape(left),compact):
+            for other in re.finditer(re.escape(right),compact):
+                a=min(match.start(),other.start());b=max(match.end(),other.end())
+                start=max(0,positions[a]-40);end=min(len(body),positions[b-1]+41)
+                if end-start<=800:
+                    return [{'source_url':source[8:],'quote':body[start:end]}]
+    return []
+
+
 def resolve_roster_names(agent, report, registry, trace):
     """Resolve only name rendering after historical row provenance has passed."""
     from .contracts import ask_json
@@ -146,26 +168,25 @@ def resolve_roster_names(agent, report, registry, trace):
             validate_name_bridge(row,trace.events)
             continue
         except ValueError:pass
-        args=json.dumps({'query':f'"{native}" "{surname}"'})
-        raw,ok=registry.execute('search_web',args)
-        trace.record_tool_call()
-        trace.add('tool_call',name='search_web',arguments=args,result=raw,succeeded=ok,phase='identity_bridge')
-        try:results=json.loads(raw) if ok else []
-        except ValueError:results=[]
-        if not isinstance(results,list):results=[]
-        for result in results[:2]:
-            url=result.get('url') if isinstance(result,dict) else None
-            if not isinstance(url,str):continue
-            args=json.dumps({'url':url})
-            body,success=registry.execute('fetch_url',args)
+        row['name_support']=literal_name_bridge(trace.events,native,surname)
+        for query in (f'{native} {surname}',f'{native} {surname} Wikipedia'):
+            if row['name_support']:break
+            args=json.dumps({'query':query})
+            raw,ok=registry.execute('search_web',args)
             trace.record_tool_call()
-            trace.add('tool_call',name='fetch_url',arguments=args,result=body,succeeded=success,phase='identity_bridge')
-        packet=item_evidence(trace.events,[native,surname])
-        alias=ask_json(agent,'Provide literal bilingual identity evidence joining the native name '+native+
-            ' to Roman surname '+surname+'. Return {"support":[{"source_url":"actual source URL",'
-            '"quote":"literal contiguous source text containing the native and Roman names"}]}. '
-            'Use only fetched text below; never invent or translate a quotation. If unavailable use empty support. '+packet,trace)
-        row['name_support']=alias.get('support',[])
+            trace.add('tool_call',name='search_web',arguments=args,result=raw,succeeded=ok,phase='identity_bridge')
+            try:results=json.loads(raw) if ok else []
+            except ValueError:results=[]
+            if not isinstance(results,list):results=[]
+            for result in results[:2]:
+                url=result.get('url') if isinstance(result,dict) else None
+                if not isinstance(url,str):continue
+                args=json.dumps({'url':url})
+                body,success=registry.execute('fetch_url',args)
+                trace.record_tool_call()
+                trace.add('tool_call',name='fetch_url',arguments=args,result=body,succeeded=success,phase='identity_bridge')
+                row['name_support']=literal_name_bridge(trace.events,native,surname)
+                if row['name_support']:break
     return report
 
 

@@ -59,6 +59,17 @@ def test_native_roster_requires_observed_bilingual_identity_bridge():
  with pytest.raises(ValueError):temporal_neighbors(r,2018,events+[profile])
 
 
+def test_identity_bridge_cannot_join_two_people_with_same_surname():
+ from gaia_agent.resolution import validate_name_bridge
+ text='Alpha First (甲一) is one person. Alpha Second (甲二) is another person.'
+ row={'native_name':'甲一','surname':'Beta','name_support':[{'source_url':'https://example.org/archive','quote':text}]}
+ with pytest.raises(ValueError):validate_name_bridge(row,[page(text)])
+ row['surname']='Alpha'
+ validate_name_bridge(row,[page(text)])
+ row['native_name']='甲三'
+ with pytest.raises(ValueError):validate_name_bridge(row,[page(text)])
+
+
 def test_year_matching_supports_non_latin_date_suffixes():
  r=roster();r['time_quote']='Official 2018\u5e74 roster for the season'
  body=r['time_quote']+'\n'+'\n'.join(x['quote'] for x in r['rows'])
