@@ -153,6 +153,24 @@ def bounded_response_body(response) -> bytes:
     return bytes(body)
 
 
+def label_simple_tables(soup):
+    """Retain column meaning when HTML is flattened, without guessing merged grids."""
+    for table in soup.find_all('table'):
+        rows=[row for row in table.find_all('tr') if row.find_parent('table') is table]
+        if not rows:continue
+        cells=rows[0].find_all(['th','td'],recursive=False)
+        if len(cells)<2 or any(cell.name!='th' for cell in cells):continue
+        if any(cell.get('rowspan','1')!='1' or cell.get('colspan','1')!='1'
+               for row in rows for cell in row.find_all(['th','td'],recursive=False)):continue
+        headers=[cell.get_text(' ',strip=True) for cell in cells]
+        if any(not header or len(header)>100 for header in headers) or len(set(headers))!=len(headers):continue
+        for row in rows[1:]:
+            cells=row.find_all(['th','td'],recursive=False)
+            if len(cells)!=len(headers):continue
+            for header,cell in zip(headers,cells):
+                cell.insert(0,header+': ')
+
+
 def fetch_url(url: str, link_query: str | None = None) -> str:
     for _ in range(5):
         response = requests.get(
@@ -183,6 +201,7 @@ def fetch_url(url: str, link_query: str | None = None) -> str:
     soup = BeautifulSoup(body, "html.parser")
     for tag in soup(["script", "style", "noscript", "svg"]):
         tag.decompose()
+    label_simple_tables(soup)
     text = "\n".join(line.strip() for line in soup.get_text("\n").splitlines() if line.strip())
     if urlparse(url).hostname == 'validate.perfdrive.com' or any(marker in text.lower()[:1500] for marker in (
         'verify you are human', 'checking your browser', 'enable javascript and cookies',
