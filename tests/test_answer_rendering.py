@@ -14,3 +14,18 @@ def test_ambiguous_uncertain_or_unrelated_numbers_are_not_extracted():
                    'About 42 research reports', 'Unable to verify; possibly 42 research reports',
                    '12 meetings in 2018', 'Not 42 research reports', '42 papers'):
         assert render_final_answer(question,answer)==answer
+
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize('question,answer,expected', [
+    ('In the video, what is the highest number of bird species to be on camera simultaneously?', '3 species', '3'),
+    ('In the video, what is the highest number of bird species to be on camera simultaneously?', '3 bird species', '3'),
+    ('What is the total number of athletes?', '1,024 athletes.', '1,024'),
+    ('What is the number of moons?', '3 moons and 2 rings', '3 moons and 2 rings'),  # new information kept
+    ('How far is it in kilometers?', '3 kilometers', '3 kilometers'),  # not a quantity-of-items request
+    ('What is the highest number of birds?', '3 adult penguins', '3 adult penguins'),  # words not from question
+])
+def test_quantity_answers_drop_only_units_echoed_from_the_question(question, answer, expected):
+    assert render_final_answer(question, answer) == expected
