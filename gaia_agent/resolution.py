@@ -72,6 +72,18 @@ def inspect_census(agent, question, sheets, video_path, media_dir, trace):
                        'limitation':'sampled frames only; not an exhaustive proof of the whole-video maximum'},ensure_ascii=False)
 
 
+def temporal_source_conflict(raw, year):
+    """A recent update does not invalidate an explicitly dated retrospective roster."""
+    body=raw.split('\nNAVIGATION LINKS',1)[0]
+    dates=re.findall(r'UPDATE[^\n]*?(20\d{2}|19\d{2})',body,re.I)
+    if not any(int(y)!=year for y in dates):return False
+    dated_section=re.search(r'(?m)^[^\n]{0,100}(?<!\d)'+str(year)+
+                            r'(?!\d)[^\n]{0,100}\b(?:roster|register|lineup)\b[^\n]{0,60}$',body,re.I)
+    reverse_section=re.search(r'(?m)^[^\n]{0,60}\b(?:roster|register|lineup)\b[^\n]{0,100}(?<!\d)'+
+                              str(year)+r'(?!\d)[^\n]{0,60}$',body,re.I)
+    return not bool(dated_section or reverse_section)
+
+
 def temporal_neighbors(report, year, events):
     # Links can discover archives but their labels cannot establish roster facts.
     events=[dict(e,result=e.get('result','').split('\nNAVIGATION LINKS',1)[0]) for e in events]
@@ -82,8 +94,7 @@ def temporal_neighbors(report, year, events):
     validate_support([{'source_url':source,'quote':time_quote}],events)
     for e in events:
         if e.get('name')=='fetch_url' and e.get('result','').startswith('SOURCE: '+source+'\n'):
-            dates=re.findall(r'UPDATE[^\n]*?(20\d{2}|19\d{2})',e['result'],re.I)
-            if any(int(y)!=year for y in dates):raise ValueError('source update year contradicts requested period')
+            if temporal_source_conflict(e['result'],year):raise ValueError('source update year contradicts requested period')
     rows=report.get('rows'); target=report.get('target_number')
     if type(target) is not int or not isinstance(rows,list):raise ValueError('numeric target and roster rows required')
     by_number={}
@@ -99,9 +110,9 @@ def temporal_neighbors(report, year, events):
 
 
 def solve_temporal_neighbors(agent,question,registry,trace):
-    match=re.search(r'\bas of\s+(?:[A-Za-z]+\s+)?((?:19|20)\d{2})',question,re.I)
-    if not match or not re.search(r'\bbefore\b.*\bafter\b',question,re.I) or not re.search(r'\bnumber',question,re.I):return None
-    year=int(match[1])
+    from .policies import historical_neighbor_year
+    year=historical_neighbor_year(question)
+    if year is None:return None
     from .registry import ToolRegistry
     web=ToolRegistry()
     web.audit=registry.audit
@@ -120,7 +131,7 @@ def solve_temporal_neighbors(agent,question,registry,trace):
         from .tools import fetch_url
         raw=fetch_url(url,link_query=str(year))
         dates=re.findall(r'UPDATE[^\n]*?(20\d{2}|19\d{2})',raw,re.I)
-        if dates and any(int(y)!=year for y in dates):
+        if temporal_source_conflict(raw,year):
             links=raw.split('NAVIGATION LINKS',1)[-1] if 'NAVIGATION LINKS' in raw else ''
             raise ValueError('Historical constraint: this page explicitly updates to '+','.join(dates)+
                              ', not '+str(year)+'. Open a year-specific source; do not retry this current roster. Navigation only: '+links)

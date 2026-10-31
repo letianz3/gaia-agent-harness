@@ -54,6 +54,8 @@ class Settings:
     runs_dir: Path
     temperature: float = 0.0
     typed_entities_enabled: bool = False
+    specialized_workflows_enabled: bool = True
+    domain_policies_enabled: bool = True
     memory_enabled: bool = True
     memory_max_messages: int = 16
     memory_keep_recent: int = 6
@@ -93,6 +95,8 @@ class Settings:
             runs_dir=Path(os.getenv("AGENT_RUNS_DIR", ".runs")).resolve(),
             temperature=_nonnegative_float("AGENT_TEMPERATURE", 0.0),
             typed_entities_enabled=_boolean("AGENT_TYPED_ENTITIES_ENABLED", False),
+            specialized_workflows_enabled=_boolean("AGENT_SPECIALIZED_WORKFLOWS_ENABLED", True),
+            domain_policies_enabled=_boolean("AGENT_DOMAIN_POLICIES_ENABLED", True),
             memory_enabled=_boolean("AGENT_MEMORY_ENABLED", True),
             memory_max_messages=memory_max_messages,
             memory_keep_recent=memory_keep_recent,

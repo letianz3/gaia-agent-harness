@@ -242,7 +242,8 @@ class BaselineAgent:
         sheets = sample_video_contact_sheets(
             video_path, media_dir, timestamps_seconds
         )
-        if re.search(r'\bspecies\b',question,re.I) and re.search(r'simultaneous|same time',question,re.I):
+        from .policies import wants_species_census
+        if self.settings.specialized_workflows_enabled and wants_species_census(question):
             from .resolution import inspect_census
             return inspect_census(self,question,sheets,video_path,media_dir,trace)
         return audio_note + "\n" + self._vision_observation(
@@ -1043,14 +1044,8 @@ Respond ONLY as JSON:
         attempt_start = len(trace.events)
         trace.add('input_evidence', name='original_task_and_transcripts',
                   result=self._message_to_text({'role': 'user', 'content': task_context}))
-        from .source_lists import solve_source_list
-        from .typed_workflows import solve_typed_task
-        from .resolution import solve_temporal_neighbors
-        source_answer = solve_temporal_neighbors(self, question, registry, trace)
-        if source_answer is None:
-            source_answer = solve_typed_task(self, question, files, registry, trace)
-        if source_answer is None:
-            source_answer = solve_source_list(self, question, task_context, trace, registry)
+        from .workflows import solve_specialized
+        source_answer=solve_specialized(self,question,files,task_context,registry,trace)
         if source_answer is not None:
             answer = source_answer
         elif self.settings.planning_enabled or self.settings.multi_agent_enabled:

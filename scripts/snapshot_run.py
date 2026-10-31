@@ -45,6 +45,8 @@ def main() -> None:
         "questions": len(answers),
         "model": settings.model,
         "typed_entities_enabled": settings.typed_entities_enabled,
+        "specialized_workflows_enabled": settings.specialized_workflows_enabled,
+        "domain_policies_enabled": settings.domain_policies_enabled,
         "temperature": settings.temperature,
         "memory_enabled": settings.memory_enabled,
         "memory_max_messages": settings.memory_max_messages,

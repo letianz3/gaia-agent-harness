@@ -34,7 +34,8 @@ def roster():
 def test_temporal_neighbors_sort_numbers_and_require_dated_evidence():
  r=roster(); body=r['time_quote']+'\n'+'\n'.join(x['quote'] for x in r['rows'])
  assert temporal_neighbors(r,2018,[page(body)])=='Alpha, Delta'
- with pytest.raises(ValueError):temporal_neighbors(r,2018,[page('UPDATE:At the end of 2024 season\n'+body)])
+ # A recently maintained page can still contain an explicitly dated archive.
+ assert temporal_neighbors(r,2018,[page('UPDATE:At the end of 2024 season\n'+body)])=='Alpha, Delta'
  r['rows'][0]['number']=10
  with pytest.raises(ValueError):temporal_neighbors(r,2018,[page(body)])
 
@@ -59,7 +60,7 @@ def test_temporal_sampling_fills_late_gaps():
 def test_plant_part_rules_override_culinary_membership():
  from gaia_agent.source_lists import render_list
  report={'items':[dict(text='unknown seed',include=True,basis='edible seed',plant_part='seed',excluded_by=[]),dict(text='unknown leaf',include=True,basis='edible leaf',plant_part='leaf',excluded_by=[])]}
- assert render_list(report,dict(mode='classify',items=['unknown seed','unknown leaf'],plant_parts=True))=='unknown leaf'
+ assert render_list(report,dict(mode='classify',items=['unknown seed','unknown leaf'],policy_id='botanical_nonfruit_parts'))=='unknown leaf'
 
 def test_invented_category_exclusions_are_rejected():
  from gaia_agent.source_lists import render_list
