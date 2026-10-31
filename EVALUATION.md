@@ -704,30 +704,50 @@ task-ID branch, benchmark answer constant or entity-specific URL was added.
 The current conclusion is **two fresh 19/20 runs with different failures; stable
 20/20 has not been achieved**. Earlier checkpoints and failed trials are retained.
 
-## R14 candidate: table structure, canonical provenance and code-owned ranking
+## R14: structured tables, reviewed table queries and decision/confidence separation
 
-Not yet evaluated on fresh full runs. Changes target the two R13 frozen failures
-using offline replays of their traces and real page fixtures; no task IDs,
-entity names, URLs or answer constants were added.
+Changes (general mechanisms; no task IDs, entity names, URLs or answer constants):
 
-Historical roster (R13 run 1). The correct source was fetched and the model's
-rows were right (18, 19, 20 with the correct names). Validation rejected them
-because the page uses full-width digits (`１８`) while the quotation used `18`.
-The labelled layout was itself produced by R12's per-cell header labels, which
-R13's number/name grounding pattern did not recognise. The repair prompt then
-said "Do NOT repeat these completed searches/URLs", steering the model to a
-current roster that the date contract correctly rejected. Replay: with NFKC
-comparison alone, the original rejected report passes row provenance; the new
-layout-agnostic grounding copies literal records for the old labelled layout and
-the new table rows.
+- HTML tables render as one literal line per row with expanded spans/headers;
+  provenance uses NFKC compatibility equivalence; numbered records are grounded
+  independently of layout; repair keeps an already verified dated source.
+- `table_queries.py`: when a complete table was observed, the model writes a
+  declarative query (min/max/count/sum/value, filters quoting the question,
+  tie rule) or declares it not applicable; code executes it. Agreement settles
+  the answer; disagreement changes it only after an independent spec review.
+- `decision.py`: unresolved verification is reported (INCOMPLETE) but no longer
+  converts a concrete candidate into an abstention; prose candidates are reduced
+  to a literal submission value or treated as abstentions, which cannot replace
+  a concrete incumbent. Strategies defer to the general pipeline when blocked.
+- Robustness: search retry round, reusable downloaded media, AV1->H.264
+  transcoding when OpenCV cannot decode, quantity answers drop units echoed from
+  the question, list-contract repair names each incomplete input item (three
+  bounded attempts), and video census inspects up to two candidates per sheet.
 
-Olympic minimum (R13 run 2). The count table was flattened to one cell per line,
-so evidence windows contained only a few countries and the critic's request for
-tie coverage was reasonable. The source-exploration limit then refused re-reading
-the same table, and the revision produced DEN; pairwise comparison rejected CUB
-while citing CUB=1 and DEN=91. Replay on the real table: the ranking contract
-computes minimum 1 with tie {CUB, PAN} and returns CUB, keeping a CUB incumbent
-and overriding a DEN incumbent, without either model judgement.
+Evaluation environment: cloud container, gpt-4.1-mini, temperature 0, fresh
+per-run caches, official scorer. YouTube blocks cloud IPs, so the runs reused raw
+inputs from R13 run 2 (attachments, one downloaded source video, one raw caption
+record); no answers or analyses were seeded. No local Stockfish: the chess tool
+used its Lichess cloud-evaluation fallback (correct in every run).
 
-Local tests: 164 pass (142 before). Model-dependent steps (table/column choice,
-roster extraction) still need fresh full runs before any score is claimed.
+| Runtime | Score | Chat tokens | Failures |
+| --- | ---: | ---: | --- |
+| r14b (tables, queries, decision layer) | 18/20 | 555,888 | video (AV1 frames undecodable), FunkMonk (prose "no such article" challenger won) |
+| r14c (+ submission-form gate, AV1 transcoding) | 19/20 | 293,601 | "3 species" instead of "3" |
+| r14d (+ quantity rendering) | 19/20 | 478,535 | botanical list (contract classified 9/19 items, generic repair message) |
+| r14e (+ itemized list repair) | 19/20 | 531,741 | video count 2 (third species not sampled) |
+| r14f (+ denser census sampling) | **20/20** | 631,065 | none |
+| r14f, unchanged repeat | 18/20 | 448,923 | video count 2 (third species not recognised in inspected frames); Malko "Claus Peter" |
+
+Both R13 frozen failures (historical roster, Olympic minimum/tie) were correct in
+all six runs; the roster repair loop was observed recovering from a provenance
+rejection on the pinned dated source, and the table query agreed with the solver
+on the Olympic and 1977 at-bats questions. Targeted video repeats after r14f were
+3/3 correct, but the frozen repeat failed it again, so visual species recognition
+by the model remains the main source of variance. The Malko answer reflects an
+ambiguous compound given name; the evidence-based name-part contract exists but
+is disabled by default.
+
+Conclusion: **one fresh 20/20 and one fresh 18/20 with identical runtime**. A
+perfect score has been reached but is not stable; the six runs are development-set
+observations on a repeatedly used set, not a held-out result. Local tests: 183 pass.
