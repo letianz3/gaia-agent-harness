@@ -73,8 +73,10 @@ def test_uncertainty_allows_one_acquisition_and_requires_review(monkeypatch, rev
         args[5].add('tool_call',name='fetch_url',succeeded=True,result='verified supported answer')
         return 'supported'
     monkeypatch.setattr(agent, '_revise_answer', acquire)
-    raw=json.dumps({'candidates':[{'id':'A','verdict':'UNCERTAIN','support':[]},
-        {'id':'B','verdict':review,'support':[{'id':'E3','quote':'verified supported answer'}]}]})
+    raw=json.dumps({'candidates':[{'id':'A','verdict':'UNCERTAIN','support':[],
+        'checks':dict(task_constraints='UNCERTAIN',source_identity='UNCERTAIN',answer_value='UNCERTAIN')},
+        {'id':'B','verdict':review,'checks':dict(task_constraints=review,source_identity=review,answer_value=review),
+         'support':[{'id':'E3','quote':'verified supported answer'}]}]})
     monkeypatch.setattr(agent,'_plain_completion',lambda *a,**k:SimpleNamespace(usage=None,choices=[SimpleNamespace(message=SimpleNamespace(content=raw))]))
     assert agent._recover_answer('task', 'task', 'original', None, Trace('id', 'task'), None, '') == expected
     assert len(acquisitions) == 1
