@@ -483,6 +483,9 @@ class BaselineAgent:
         final_instruction: str | None = None,
         final_json: bool = False,
     ) -> str:
+        from .source_progress import SourceProgressRegistry
+
+        registry = SourceProgressRegistry(registry, trace)
         if self.settings.parallel_tools_enabled and messages:
             messages = list(messages)
             first = messages[0]
