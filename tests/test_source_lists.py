@@ -52,7 +52,7 @@ def test_contract_repair_is_bounded_and_falls_back():
     agent=SimpleNamespace(_plain_completion=completion)
     q='List ingredients alphabetized, comma separated.'
     assert solve_source_list(agent,q,q+'\nTranscript of a.mp3:\nUse cloves.',Trace('test',q)) is None
-    assert len(calls)==2
+    assert len(calls)==3  # bounded: initial attempt plus two targeted repairs
 
 
 def test_explicit_exclusion_overrides_category_membership():
@@ -64,3 +64,30 @@ def test_explicit_exclusion_overrides_category_membership():
     report['items'][0]['excluded_by']=[]
     with pytest.raises(ValueError,match='every explicit exclusion'):
         render_list(report,spec)
+
+
+def test_repair_names_missing_items_and_merges_partial_answers():
+    """Replays R14d run 3: the model classified only the plant items, then needed the rest by name."""
+    import json
+    question = ('My mom is a stickler about categorizing: make sure that no botanical fruits end up on the vegetable list. '
+                'Alphabetize the vegetables as a comma separated list.\n\nmilk, eggs, fresh basil, corn, '
+                'lettuce, sweet potatoes, plums')
+    plants = {'items': [
+        dict(text='fresh basil', include=True, plant_part='leaf', basis='leaves', excluded_by=[False]),
+        dict(text='corn', include=False, plant_part='fruit', basis='grain fruit', excluded_by=[True]),
+        dict(text='lettuce', include=True, plant_part='leaf', basis='leaves', excluded_by=[False]),
+        dict(text='sweet potatoes', include=True, plant_part='tuber', basis='tuber', excluded_by=[False]),
+        dict(text='plums', include=False, plant_part='fruit', basis='fruit', excluded_by=[True])],
+        'exclusion_criteria': ['make sure that no botanical fruits end up on the vegetable list']}
+    rest = {'items': [dict(text=t, include=False, plant_part='nonplant', basis='animal product', excluded_by=[False])
+                      for t in ('milk', 'eggs')],
+            'exclusion_criteria': ['make sure that no botanical fruits end up on the vegetable list']}
+    replies = iter([plants, rest])
+    prompts = []
+    def completion(messages, **kwargs):
+        prompts.append(messages[-1]['content'])
+        return SimpleNamespace(usage=None, choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(next(replies))))])
+    agent = SimpleNamespace(_plain_completion=completion, settings=SimpleNamespace(domain_policies_enabled=True))
+    answer = solve_source_list(agent, question, question, Trace('t', question))
+    assert answer == 'fresh basil, lettuce, sweet potatoes'
+    assert '"milk"' in prompts[1] and '"eggs"' in prompts[1] and '"fresh basil"' not in prompts[1]
