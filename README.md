@@ -40,6 +40,7 @@ failed experiments are retained in Git, without mixing answers across runs.
 | R8b · `b1e5982` | **18/20*** | 390,706 | Normalize sentence punctuation on single-word answer contracts. | Re-score the same complete answer set; no new model calls or answer-set mixing. Historical roster and chemistry-page lookup remain unresolved. |
 | R9 · `6086685` | **18/20** | 497,302 | Isolate optional domain policies and strategy dispatch; narrow applicability and allow dated retrospective sources. | Fresh full run preserves score. Six non-GAIA smoke tasks have correct content (5/6 exact strings). Cost increased; broad generalization is not established. |
 | R10 experimental · `4585acc` | Targeted: **5/6** | 320,363 | Retrieve answer-relevant original passages, compare candidates equally, and avoid duplicate recovery requests. | Three fresh runs of two fluctuating tasks: both correct in 2/3 runs. Source selection still fails once; not a new full-set score. |
+| R11 experimental · `a67e37f` | Targeted: **6/6** | 233,540 | Flag unconfirmed author identity and bound same-document navigation across loop transitions. | Both fluctuating tasks correct in all three fresh rounds; 27.1% fewer tokens than R10's final batch. Small development sample, not a full-set or stability guarantee. |
 
 R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
 recipe wording and chess perception-to-engine execution. The actor answer also

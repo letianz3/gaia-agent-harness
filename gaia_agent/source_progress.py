@@ -36,6 +36,7 @@ class SourceProgressRegistry:
         self.visits = {}
         self.bodies = {}
         self.lock = threading.RLock()
+        self.source_locks = {}
         for event in trace.events:
             if event.get('name') == 'fetch_url' and event.get('succeeded'):
                 try:
@@ -57,8 +58,10 @@ class SourceProgressRegistry:
             key = source_key(args['url'])
         except (ValueError, TypeError, KeyError):
             return self.registry.execute(name, arguments)
-        # Serialize source reads so parallel variants cannot bypass the allowance.
+        # Serialize variants of the SAME source without blocking independent reads.
         with self.lock:
+            gate = self.source_locks.setdefault(key, threading.RLock())
+        with gate:
             if self.visits.get(key, 0) >= 2:
                 self.trace.add('source_progress', url=key, action='switch_source')
                 return ('SOURCE EXPLORATION LIMIT: this document has already been read and '

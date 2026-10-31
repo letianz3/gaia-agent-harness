@@ -446,3 +446,46 @@ These small development-set samples do not establish stable accuracy or causalit
 All 110 unit tests pass. Repository-wide Ruff still has 135 pre-existing findings
 (also present at R9); the new verification files pass Ruff. Formatting-only cleanup
 after `4585acc` does not constitute a new model evaluation.
+
+## R11: source identity and exploration progress
+
+The previous failed textbook run selected a same-named chapter from another book,
+then changed `link_query` repeatedly on that URL. Navigation filtering does not
+search the page body or establish book identity. Exact-argument deduplication in
+the repair loop did not address this behavior during initial solving.
+
+The new tool-loop wrapper identifies explicitly named authors in conservative
+`written/authored/edited/licensed by ...` phrases. If those names are absent from
+the fetched page, it marks identity as unconfirmed and suggests locating the
+parent work through an author search. Absence does not prove a mismatch, and the
+page remains available. This is a limited identity check, not a general metadata
+resolver: titles, editions, aliases and dates still require evidence and review.
+
+Successful reads seed a per-source allowance across loop transitions: at most
+two fetches of a document before switching sources. Changing navigation keywords
+or URL fragments does not reset it; distinct query strings and URLs remain
+distinct. Failed fetches remain retryable. The allowance is a deterministic
+exploration bound, not a proof that all useful links have been exhausted. Dynamic
+pages that legitimately need repeated refreshes may require a separate policy.
+Harness guidance is excluded from factual evidence packets. No benchmark IDs,
+answers, textbook URLs, or named authors are encoded in the implementation.
+
+Three fresh two-question runs at `a67e37f` were
+`targeted_20261031T020720Z`, `targeted_20261031T020800Z`, and
+`targeted_20261031T020842Z`. Both tasks passed in every round (6/6 individual;
+3/3 paired), compared with R10's final 5/6 individual and 2/3 paired.
+Total chat tokens were 233,540 versus 320,363 (27.1% lower). This is a small,
+unpaired development comparison with variable model/search results, not a causal
+ablation or guarantee. The first textbook run recorded an unconfirmed-author
+warning followed by a new author/book search and a supported final answer.
+
+The evaluated implementation serialized fetches within each loop wrapper.
+A subsequent concurrency-only adjustment locks per source, preserving independent
+URL parallelism while keeping same-source variants atomic. 116 tests pass,
+including independent URL concurrency, same-source budget enforcement, navigation
+JSON integrity, retryability and exclusion of harness hints from factual evidence.
+The new files pass Ruff. No new model evaluation was performed after that locking
+adjustment; no full 20-question or historical-roster run was performed in R11.
+The wrapper seeds prior successes at each loop start; simultaneous independent
+worker wrappers do not share a live global source ledger. This is a loop-level
+exploration control with history seeding, not a global network-request quota.

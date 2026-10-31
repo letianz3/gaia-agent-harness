@@ -49,3 +49,32 @@ def test_successful_prior_reads_seed_recovery_limit():
         trace.add('tool_call', name='fetch_url', arguments='{"url":"https://example.org/a"}', succeeded=True, result='SOURCE: https://example.org/a\ntext')
     proxy = SourceProgressRegistry(SimpleNamespace(execute=lambda *args: (_ for _ in ()).throw(AssertionError('no fetch'))), trace)
     assert not proxy.execute('fetch_url', '{"url":"https://example.org/a"}')[1]
+
+
+def test_distinct_sources_remain_concurrent():
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    barrier = threading.Barrier(2)
+    def execute(name, args):
+        barrier.wait(timeout=2)
+        return 'SOURCE: ' + json.loads(args)['url'] + '\ntext', True
+    proxy = SourceProgressRegistry(SimpleNamespace(execute=execute), Trace('test', 'Question'))
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda path: proxy.execute('fetch_url', json.dumps({'url': 'https://example.org/' + path})), ['a', 'b']))
+    assert all(ok for _, ok in results)
+
+
+def test_navigation_json_remains_parseable_and_same_source_budget_is_atomic():
+    from concurrent.futures import ThreadPoolExecutor
+
+    marker = '\nNAVIGATION LINKS (discovery only, not factual evidence):\n'
+    def execute(name, args):
+        return 'SOURCE: https://example.org/a\ntext' + marker + '[{"url":"https://example.org/b"}]', True
+    proxy = SourceProgressRegistry(SimpleNamespace(execute=execute), Trace('test', 'Manual written by Alice Example under license?'))
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda i: proxy.execute('fetch_url', json.dumps({'url': 'https://example.org/a', 'link_query': str(i)})), range(4)))
+    assert sum(ok for _, ok in results) == 2
+    for raw, ok in results:
+        if ok:
+            assert json.loads(raw.split(marker)[1])[0]['url'] == 'https://example.org/b'
