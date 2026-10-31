@@ -510,6 +510,20 @@ class BaselineAgent:
                 content=message.content,
             )
             if not message.tool_calls:
+                if final_json:
+                    import json
+                    try:
+                        parsed = json.loads(message.content or '')
+                        if not isinstance(parsed, dict):
+                            raise ValueError('expected one object')
+                    except ValueError:
+                        repair = self._plain_completion(messages + [
+                            {'role': 'assistant', 'content': message.content or ''},
+                            {'role': 'user', 'content': 'Return exactly ONE JSON object conforming to the requested contract. Preserve existing evidence; do not add a second answer object or invent missing facts.'},
+                        ], response_format={'type': 'json_object'})
+                        trace.add_usage(getattr(repair, 'usage', None))
+                        trace.add('structured_output_repair', phase=phase)
+                        return repair.choices[0].message.content or '{}'
                 return message.content or ""
 
             messages.append(message)

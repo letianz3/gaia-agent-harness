@@ -164,8 +164,25 @@ def solve_temporal_neighbors(agent,question,registry,trace):
         'do not translate quotations or invent transliterations. Name profiles may be current: they establish identity only, '
         'while the dated roster establishes past numbers and roles. '
         'If unavailable return {}. Task: '+question)
-    messages=[{'role':'system','content':prompt}]
-    for attempt,turns in enumerate((10,6)):
+    from .contracts import ask_json
+    discovery=ask_json(agent,
+        'Generate at most TWO search queries to locate a historical numbered roster. '
+        'One English query and one in the native language of the relevant organization. '
+        'Include organization identity, requested year and local terms for roster/uniform numbers. '
+        'Do not guess answers, player neighbors or URLs. Return {"queries":["...","..."]}. Task: '+question,trace)
+    observations=[]
+    queries=discovery.get('queries',[])
+    if isinstance(queries,list):
+        for query in queries[:2]:
+            if not isinstance(query,str) or not query.strip() or len(query)>500:continue
+            args=json.dumps({'query':query})
+            result,ok=web.execute('search_web',args)
+            trace.record_tool_call()
+            trace.add('tool_call',name='search_web',arguments=args,result=result,succeeded=ok,phase='historical_discovery')
+            observations.append({'query':query,'results':result})
+    messages=[{'role':'system','content':prompt},
+              {'role':'user','content':'Discovery results only (fetch sources before citing): '+json.dumps(observations,ensure_ascii=False)}]
+    for attempt,turns in enumerate((8,6,4)):
         raw=agent._run_tool_loop(messages,web,trace,turns,'subtask',
                                 final_instruction='Return the historical roster JSON with literal quotes or {}.',final_json=True)
         report=read_json_object(raw)
