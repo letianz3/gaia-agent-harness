@@ -171,6 +171,19 @@ def label_simple_tables(soup):
                 cell.insert(0,header+': ')
 
 
+def bounded_document_text(text, query=None, limit=30000):
+    """Keep document tails and literal query windows instead of head-only text."""
+    if len(text) <= limit:
+        return text
+    from .contracts import evidence_windows
+    windows = evidence_windows(text, query, limit=5) if query else []
+    focused = '\n[Separate original passage]\n'.join(windows)[:3500]
+    tail_size = limit // 3
+    marker = '\n[Middle omitted; original passages follow]\n'
+    head_size = limit - tail_size - len(focused) - 2 * len(marker)
+    return text[:head_size] + marker + focused + marker + text[-tail_size:]
+
+
 def fetch_url(url: str, link_query: str | None = None) -> str:
     for _ in range(5):
         response = requests.get(
@@ -222,7 +235,7 @@ def fetch_url(url: str, link_query: str | None = None) -> str:
             return 100*(link_query.casefold() in value)+sum(t in value for t in terms)+3*bool(re.search(r'\.pdf(?:$|\?)|/pdf/|download.*pdf',value))
         candidates.sort(key=relevance,reverse=True)
         links='\nNAVIGATION LINKS (discovery only, not factual evidence):\n'+json.dumps(candidates[:60],ensure_ascii=False)
-    return f"SOURCE: {url}\n{text[:30_000]}{links}"
+    return f"SOURCE: {url}\n{bounded_document_text(text, link_query)}{links}"
 
 
 def _youtube_video_id(url_or_id: str) -> str:

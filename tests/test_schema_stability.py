@@ -99,6 +99,33 @@ def test_review_aggregate_cannot_override_failed_or_missing_constraint():
     assert aggregate_checks(row)['verdict'] == 'UNCERTAIN'
 
 
+def test_long_document_keeps_tail_and_middle_query_with_bounded_output():
+    from gaia_agent.tools import bounded_document_text
+    text = 'Document title\n' + 'padding ' * 6000 + '\nAcknowledgments: award ZZ-987 supports Researcher Q.\n' + 'more ' * 5000 + '\nClosing appendix.'
+    excerpt = bounded_document_text(text, 'Acknowledgments')
+    assert len(excerpt) <= 30000
+    assert 'award ZZ-987 supports Researcher Q.' in excerpt
+    assert excerpt.startswith('Document title') and excerpt.endswith('Closing appendix.')
+    assert bounded_document_text('short document') == 'short document'
+
+
+def test_numbered_source_materialization_requires_observed_adjacent_identity():
+    from gaia_agent.resolution import ground_numbered_rows
+    source = 'https://example.org/2018/register'
+    body = '2018 Example historical register\nPitchers\n7\n山田 太郎\n8\n佐藤 次郎\n'
+    events = [dict(name='fetch_url', succeeded=True, result='SOURCE: ' + source + '\n' + body)]
+    report = dict(source_url=source, time_quote='reworded title', rows=[
+        dict(number=7, native_name='山田太郎', quote='7 Pitcher 山田太郎'),
+        dict(number=9, native_name='佐藤次郎', quote='9 Pitcher 佐藤次郎')])
+    fixed = ground_numbered_rows(report, events, 2018)
+    assert fixed['time_quote'] == body.splitlines()[0]
+    assert fixed['rows'][0]['quote'] == '7\n山田 太郎'
+    assert fixed['rows'][0]['native_name'] == '山田 太郎'
+    assert fixed['rows'][1] == report['rows'][1]  # no invented number/name join
+    assert ground_numbered_rows(report, [], 2018) == report
+    assert report['time_quote'] == 'reworded title'
+
+
 def test_classification_repair_keeps_valid_rows_and_does_not_run_blanket_audit():
     import json
     from types import SimpleNamespace

@@ -142,7 +142,7 @@ def compare_answers(agent,question,first,second,evidence,trace):
         by_id = {r.get('id'): r for r in rows if isinstance(r, dict)} if isinstance(rows, list) else {}
         from .answer_rendering import render_final_answer
         left, right = (render_final_answer(question, x).strip() for x in (first, second))
-        if (len(rows) == 2 and set(by_id) == {'A', 'B'} and left == right and left
+        if (set(by_id) == {'A', 'B'} and len(rows) == 2 and left == right and left
                 and all(r.get('verdict') == 'PASS' and has_valid_support(json.dumps(r), evidence)
                         for r in by_id.values())):
             trace.add('candidate_equivalence', value=left,

@@ -217,6 +217,48 @@ def resolve_roster_names(agent, report, registry, trace):
     return report
 
 
+def ground_numbered_rows(report, events, year):
+    """Copy uniquely observed number/name records; never repair unknown facts.
+
+    Handles a common plain-text layout: identifier line followed immediately by
+    the original-script name. It cannot infer roles or translate identities.
+    """
+    import copy
+    result = copy.deepcopy(report)
+    source = result.get('source_url')
+    bodies = [e['result'].split('\n', 1)[1].split('\nNAVIGATION LINKS', 1)[0]
+              for e in events if e.get('name') == 'fetch_url' and e.get('succeeded')
+              and e.get('result', '').startswith('SOURCE: ' + str(source) + '\n')]
+    if not bodies:
+        return result
+    try:
+        validate_support([dict(source_url=source, quote=result.get('time_quote', ''))], events)
+    except (ValueError, TypeError):
+        # A literal dated document title, not a fabricated combined heading.
+        titles = {body.splitlines()[0].strip() for body in bodies if body.splitlines()}
+        titles = {title for title in titles if re.search(r'(?<!\d)' + str(year) + r'(?!\d)', title)
+                  and 12 <= len(title) <= 250 and not re.search(r'copyright|update|©', title, re.I)}
+        if len(titles) == 1:
+            result['time_quote'] = titles.pop()
+    rows = result.get('rows', [])
+    if not isinstance(rows, list):
+        return result
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        native = row.get('native_name')
+        number = row.get('number')
+        if not isinstance(native, str) or not native.strip() or type(number) is not int:
+            continue
+        name_pattern = r'\s*'.join(re.escape(c) for c in native if not c.isspace())
+        pattern = r'(?m)^' + str(number) + r'[ \t]*\r?\n[ \t]*' + name_pattern + r'[ \t]*(?=\r?$)'
+        matches = {m.group() for body in bodies for m in re.finditer(pattern, body)}
+        if len(matches) == 1:
+            row['quote'] = matches.pop()
+            row['native_name'] = row['quote'].split('\n', 1)[1].strip()
+    return result
+
+
 def solve_temporal_neighbors(agent,question,registry,trace):
     from .policies import historical_neighbor_year
     year=historical_neighbor_year(question)
@@ -289,6 +331,11 @@ def solve_temporal_neighbors(agent,question,registry,trace):
         raw=agent._run_tool_loop(messages,web,trace,turns,'subtask',
                                 final_instruction='Return the historical roster JSON with literal quotes or {}.',final_json=True)
         report=read_json_object(raw)
+        grounded = ground_numbered_rows(report, trace.events, year)
+        if grounded != report:
+            trace.add('temporal_source_materialized', report=grounded,
+                      scope='literal title and unique number/name spans; identity still requires validation')
+        report = grounded
         try:
             temporal_neighbors(report,year,trace.events,check_names=False)
             report=resolve_roster_names(agent,report,registry,trace)
