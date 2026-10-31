@@ -151,3 +151,12 @@ contracts defer to the general pipeline. The historical-roster contract returns 
 least severe rejected candidate only when the dated source itself was verified and
 only quotation/name-bridge provenance remained unresolved; role, neighbor and
 period failures fall through to the general pipeline.
+
+## Degradation and schema normalization (R15)
+
+Contracts degrade at the smallest failing unit. Video census excludes only the
+uncertain or under-described groups (and labels the count a lower bound) rather
+than failing the whole observation. List classification accepts any unambiguous
+flag representation and rejects only ambiguous ones, with an itemised repair
+request. Output rendering reduces a "first name" request to one given name
+(hyphenated compounds stay whole) alongside the existing quantity rendering.

@@ -751,3 +751,49 @@ is disabled by default.
 Conclusion: **one fresh 20/20 and one fresh 18/20 with identical runtime**. A
 perfect score has been reached but is not stable; the six runs are development-set
 observations on a repeatedly used set, not a held-out result. Local tests: 183 pass.
+
+## R15: degrade instead of fail, normalized schemas, measured perception limits
+
+Protocol: run once; if below 20/20, analyse the failures and change the
+architecture; if 20/20, repeat the unchanged runtime twice.
+
+| Runtime | Run | Score | Chat tokens | Failures |
+| --- | --- | ---: | ---: | --- |
+| r15a (+ one given name for "first name" requests) | 1 | **20/20** | 577,925 | none |
+| r15a, unchanged | 2 | **20/20** | 548,978 | none |
+| r15a, unchanged | 3 | 18/20 | 554,500 | video: census tool failed on one uncertain group and "No verifiable information available." was not recognised as abstention; botanical list: repair returned criterion strings instead of booleans |
+| r15b (+ per-group census degradation, abstention phrasing, flag normalization) | 1 | 19/20 | 429,657 | video count 2 (third species never perceived) |
+| r15b, unchanged | 2 | 19/20 | 493,676 | video count 2 (same) |
+
+r15b changes, all general:
+
+- Census counting degrades per group: uncertain or under-described groups are
+  not counted and the result is labelled a lower bound, instead of one uncertain
+  group making the whole tool fail and leaving the agent with no observation.
+- Abstention detection covers common phrasings ("no verifiable information",
+  "insufficient evidence", "cannot be determined", "N/A"), so such text cannot
+  be submitted by best-supported selection; ordinary answers such as "No" or
+  "Nova Scotia" are unaffected (tested).
+- List-contract flags accept any unambiguous representation (booleans in
+  criterion order, the matched criteria quoted exactly, or an object keyed by
+  every criterion); the prompt now asks for the keyed object. An empty list
+  remains ambiguous and is rejected with an itemised repair request. Replaying
+  the three recorded r15a run 3 model outputs through r15b yields the correct list.
+
+Measured and rejected (not merged):
+
+- Perception model routing. On the same six frames, gpt-4.1 found 2 species in
+  3/3 trials, gpt-4.1-mini 3 in 3/3 (one frame via a "King penguin" confusion),
+  gpt-5-mini 3 in 2/3. No evidence that a different model is reliably better.
+- One frame per vision call: worse (2 in 2/2); batch context helps.
+- Two independent census passes plus claim-level adjudication of disagreements:
+  in 3 targeted runs the adjudicator reversed its own visibility judgements and
+  twice lowered a 3 to 2, and its maximum contradicted the returned frame list.
+  The verifier used the same perception it was meant to check, so it was not
+  independent. Reverted.
+
+Status: across r15b, the 19 non-video questions were correct in both runs; the
+video species count (about half of runs) is limited by the vision model's
+recognition of a small third species, not by retrieval, verification or
+formatting. R15 reached 20/20 twice (r15a runs 1-2) but the unchanged repeat
+did not, so a stable 20/20 is still not established. Local tests: 200 pass.
