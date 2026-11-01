@@ -138,3 +138,30 @@ def test_navigation_is_bounded_and_not_factual_support():
     registry=Registry();notes=json.loads(navigation_evidence(registry,trace,trace.question))
     assert registry.calls==2 and len(notes)==2 and len(notes[0]['links'])==12
     assert 'SECRET' not in evidence_packet(trace.events,focus=(trace.question,'SECRET'))
+
+
+def test_identity_gap_reads_the_named_source_before_the_top_ranked_page():
+    """Replays R16b: verification kept reading a top-ranked book whose authors did not match."""
+    import json
+    from types import SimpleNamespace
+    from gaia_agent.tracing import Trace
+    from gaia_agent.verification import fetch_search_only_sources
+    question = ("What is mentioned in 1.E Exercises from the materials licensed by Ann Writer & Bo Author "
+                "under the CK-12 license in LibreText's Introductory Chemistry materials?")
+    rows = [{'title': 'General Chemistry 1.E Exercises', 'url': 'https://example.org/General_Chemistry/1.E'},
+            {'title': 'Introductory Chemistry (LibreTexts)', 'url': 'https://example.org/Introductory_Chemistry_(LibreTexts)'},
+            {'title': 'Introductory Chemistry (CK-12)', 'url': 'https://example.org/Introductory_Chemistry_(CK-12)'}]
+    def base(trace):
+        trace.add('tool_call', name='search_web', arguments='{}', succeeded=True, result=json.dumps(rows))
+        trace.add('tool_call', name='fetch_url', arguments=json.dumps({'url': rows[0]['url']}), succeeded=True,
+                  result='SOURCE: ' + rows[0]['url'] + '\nbody')
+        return trace
+    fetched = []
+    registry = SimpleNamespace(execute=lambda name, args: (fetched.append(json.loads(args)['url']) or ('SOURCE: x\nbody', True)))
+    trace = base(Trace('t', question))
+    trace.add('source_identity', url=rows[0]['url'], status='unconfirmed', missing=['Ann Writer'])
+    fetch_search_only_sources(registry, trace)
+    assert fetched[:2] == [rows[2]['url'], rows[1]['url']]  # CK-12 matches two named terms, LibreTexts one
+    fetched.clear()
+    fetch_search_only_sources(registry, base(Trace('t', question)))  # no identity gap: unchanged default
+    assert fetched == []  # the only top lead was already read

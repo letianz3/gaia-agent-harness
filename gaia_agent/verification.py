@@ -7,8 +7,31 @@ from .evidence import direct_evidence, has_valid_support, materialize_support, r
 from .decision import UNVERIFIED  # noqa: F401 - re-exported for callers
 
 
+def named_source_terms(question):
+    """Distinctive names the question uses for its source: multiword capitalised
+    titles ("Introductory Chemistry") and coded identifiers ("CK-12")."""
+    titles = re.findall(r"\b[A-Z][\w'’-]+(?:\s+(?:of|and|the|for|in|on|&)?\s*[A-Z][\w'’-]+)+", question)
+    pieces = []
+    for title in titles:  # "LibreText's Introductory Chemistry" names two things
+        pieces += [p.strip() for p in re.split(r"['’]s\b|\s&\s|\band\b", title) if len(p.strip().split()) >= 2]
+    codes = re.findall(r'\b[A-Za-z]+-\d+[A-Za-z]?\b', question)
+    return [t for t in dict.fromkeys(pieces + codes) if len(t) >= 4]
+
+
+def lead_score(row, terms):
+    text = ' '.join(str(row.get(k, '')) for k in ('title', 'url')).casefold().replace('_', ' ').replace('%20', ' ')
+    return sum(term.casefold() in text for term in terms)
+
+
 def fetch_search_only_sources(registry, trace):
-    """Fetch unread top search leads, at most four total across both reviews."""
+    """Fetch unread search leads before review, at most four across both reviews.
+
+    By default the top unread lead of each search is read. When an observed page
+    failed the source-identity check (the question names an author it lacks),
+    leads are instead ranked by how many of the question's named source terms
+    their title/URL contains, so verification reads the named source rather than
+    whichever page ranked first.
+    """
     if registry is None:
         return
     events=list(trace.events)
@@ -18,22 +41,33 @@ def fetch_search_only_sources(registry, trace):
         if event.get('name')=='fetch_url':
             try:seen.add(json.loads(event.get('arguments','{}')).get('url'))
             except (ValueError,TypeError):pass
-    for event in events:
-        if used>=4:break
+    leads=[]
+    for order,event in enumerate(events):
         if event.get('name')!='search_web' or not event.get('succeeded'):continue
         try:rows=json.loads(event.get('result',''))
         except (ValueError,TypeError):continue
         if not isinstance(rows,list):continue
-        for row in rows[:1]:
+        for rank,row in enumerate(rows):
             url=row.get('url') if isinstance(row,dict) else None
-            if not isinstance(url,str) or not url.startswith(('https://','http://')) or url in seen:continue
-            seen.add(url)
-            args=json.dumps({'url':url})
-            raw,ok=registry.execute('fetch_url',args)
-            trace.record_tool_call()
-            trace.add('tool_call',name='fetch_url',arguments=args,result=raw,succeeded=ok,phase='discovery_to_evidence')
-            used+=1
-            break
+            if isinstance(url,str) and url.startswith(('https://','http://')):
+                leads.append((order,rank,row,url))
+    identity_gap=any(e.get('type')=='source_identity' and e.get('status')=='unconfirmed' for e in events)
+    terms=named_source_terms(trace.question) if identity_gap else []
+    if terms:
+        ranked=sorted((x for x in leads if lead_score(x[2],terms)>0),key=lambda x:(-lead_score(x[2],terms),x[0],x[1]))
+        trace.add('lead_selection',policy='named_source_terms',terms=terms,
+                  candidates=[x[3] for x in ranked[:6]])
+    else:
+        ranked=[x for x in leads if x[1]==0]  # top unread lead of each search
+    for _,_,_,url in ranked:
+        if used>=4:break
+        if url in seen:continue
+        seen.add(url)
+        args=json.dumps({'url':url})
+        raw,ok=registry.execute('fetch_url',args)
+        trace.record_tool_call()
+        trace.add('tool_call',name='fetch_url',arguments=args,result=raw,succeeded=ok,phase='discovery_to_evidence')
+        used+=1
 
 
 class RecoveryRegistry:
