@@ -262,3 +262,24 @@ def test_a_passed_absence_claim_still_triggers_research(monkeypatch):
     trace = Trace('t', 'What is the surname of the equine veterinarian mentioned in 1.E Exercises?')
     assert agent._recover_answer(trace.question, trace.question, 'No surname is mentioned.', None, trace, None, '') == 'Louvrier'
     assert targets and 'answers: What is the surname' in targets[0]
+
+
+def test_a_fail_that_names_the_answer_in_prose_produces_a_challenger(monkeypatch):
+    """Replays R16d: the critic wrote 'is Claus Peter Flor ..., not Philip' with no corrected_answer."""
+    from gaia_agent.agent import BaselineAgent
+    agent = object.__new__(BaselineAgent)
+    agent.settings = SimpleNamespace(max_reflection_rounds=2, replanning_enabled=True, max_replans=1,
+                                     planning_turns_per_subtask=6, specialized_workflows_enabled=False)
+    feedback = ('The only recipient after 1977 with a nationality that no longer exists is Claus Peter Flor '
+                '(1983) from East Germany, not Philip. Philip Greenberg is from the United States.')
+    def critique(*args):
+        args[3].add('critique', next_action='none', target='', corrected_answer='')
+        return 'FAIL', feedback
+    monkeypatch.setattr(agent, '_critique_answer', critique)
+    monkeypatch.setattr(agent, '_plain_completion', scripted({'answer': 'Claus Peter'}))
+    compared = []
+    import gaia_agent.verification as verification
+    monkeypatch.setattr(verification, 'compare_answers', lambda a, q, first, second, ev, tr: compared.append((first, second)) or second)
+    trace = Trace('t', 'What is the first name of the only recipient?')
+    assert agent._recover_answer(trace.question, trace.question, 'Philip', None, trace, None, '') == 'Claus Peter'
+    assert compared == [('Philip', 'Claus Peter')]

@@ -1026,6 +1026,12 @@ Respond ONLY as JSON:
             action = 'acquire_evidence'
             target = 'Find a direct primary-source passage answering: ' + question
         proposed = review.get('corrected_answer', '').strip()
+        if verdict == 'FAIL' and not proposed and action != 'acquire_evidence' and feedback:
+            # A FAIL that names the right value in prose but leaves corrected_answer empty
+            # still carries a challenger; it must be compared, not discarded.
+            implied = normalize_answer(submission_value(self, question, feedback, trace, 'critic_correction'), question)
+            if not is_abstention(implied) and implied.casefold() != incumbent.casefold():
+                proposed, action = implied, 'repair_answer'
         if action == 'repair_answer' and proposed:
             challenger = normalize_answer(proposed, question)
             trace.add('evidence_repair', source='existing_observations')
