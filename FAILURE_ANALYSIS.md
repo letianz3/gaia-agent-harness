@@ -59,7 +59,7 @@ be incomplete, and model/website variability can change unaffected tasks.
 
 Every full experiment now records its Git commit and tracked-change status in
 `version.json`, in addition to the existing source snapshot and raw traces.
-Runtime artifacts remain local under `.runs/`; source versions are preserved as Git tags.
+Runtime artifacts remain local under `.runs/`; source versions are kept in Git history, tags and `archive/*` branches.
 
 
 ## Full v3 result
