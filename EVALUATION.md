@@ -832,3 +832,34 @@ Gentoo/King/Chinstrap or a petrel as an albatross, yet no run exceeded the
 correct count. Cost rose from about 18k to about 76k chat tokens for this
 question (four extra five-image calls). 12/12 is a targeted development result
 on one video, not a held-out or full-set claim. Local tests: 206 pass.
+
+### R16 full runs
+
+After the perception change, R16 also generalised the decision and retrieval
+layers (no question-specific rules):
+
+- Executed computation outranks reasoning: when exactly one candidate is backed
+  by `run_python` output, it wins the comparison by rule.
+- An abstention cannot be verified; a critic PASS on "cannot determine" sends
+  the task to evidence acquisition instead, and a concrete answer beats an
+  abstention in comparison.
+- Identity-gap lead ranking: when the critic reports a source-identity gap,
+  search leads are ranked by named source terms in the question, query-echo
+  pages are filtered, and same-site links are preferred.
+- A 404 fetch returns the parent page's nearest real links instead of a dead end.
+- Grounding is judged at production time: an answer that no available evidence
+  mentioned is marked ungrounded, and a grounded challenger replaces it.
+- Audio transcription uses a 2–3 call consensus (medoid transcript).
+- A critic FAIL that names an alternative value turns that value into a challenger.
+
+Three consecutive fresh full runs on the final R16 code (gpt-4.1-mini, cloud,
+seeded raw inputs only, official scorer):
+
+| Run | Score | Chat tokens | Search failure rate |
+| --- | ---: | ---: | ---: |
+| 1 | **20/20** | 575,555 | 37% |
+| 2 | **20/20** | 614,890 | 9% |
+| 3 | **20/20** | 595,394 | 5% |
+
+Local tests: 220 pass. These are development-set results on the same 20
+questions used for iteration, not a held-out claim.

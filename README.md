@@ -15,7 +15,7 @@ verification and multi-agent execution. See [evaluation and failure analysis](EV
 and [provenance](ATTRIBUTION.md). Credentials, benchmark data, raw traces and
 downloaded engines are excluded from Git.
 
-This project composes Modules 0–11 around the Hugging Face Final Assignment adapter. Features remain configurable; `02f_run_all_modules.bat` enables the full stack. Course Module 12 is a production roadmap, not an implemented production-readiness claim.
+This project is the `final_project` of the [agent-harness-course](https://github.com/jiminelee/agent-harness-course); "Module N" below refers to that course's modules. It composes Modules 0–11 around the Hugging Face Final Assignment adapter. Features remain configurable; `02f_run_all_modules.bat` enables the full stack. Course Module 12 is a production roadmap, not an implemented production-readiness claim.
 
 ## Evaluation iterations
 
@@ -49,6 +49,7 @@ are retained in Git, without mixing answers across runs.
 | R13 frozen · `c1e4e71` | **19/20, 19/20** | 517,432 / 559,916 | Copy observed numbered records and retain long-document tails/query passages. | Two fresh full runs: historical roster failed once; Olympic minimum/tie selection failed once. Video, botanical list, numeric formatting and funding passed both. Not stable 20/20. |
 | R14 · structured tables + reviewed table queries + decision layer | **20/20, 18/20** | 631,065 / 448,923 | Render tables as literal rows; NFKC provenance; layout-agnostic record grounding; declarative table queries executed by code after independent spec review; best-supported selection instead of abstention; prose candidates reduced to literal values. | Fresh cloud runs (YouTube raw inputs reused). Both R13 failures fixed in all six R14 runs; remaining variance: visual species recognition and a compound given name. Not stable 20/20. |
 | R15 · degrade-not-fail, schema normalization | **20/20, 20/20**, 18, 19, 19 | 429,657–577,925 | Per-group census degradation, broader abstention detection, normalized list-contract flags, one given name for "first name" requests. Perception routing and census adjudication were measured and rejected. | All non-video questions correct in both r15b runs; the video species count fails in about half of runs because of visual recognition. Not stable 20/20. |
+| R16 · multiscale perception + execution-backed decisions | **20/20, 20/20, 20/20** | 575,555 / 614,890 / 595,394 | Full image plus overlapping enlarged tiles for vision; coarse-to-fine video census; requested-category counting; executed computation outranks mental reasoning; abstentions cannot pass verification; identity-gap lead ranking; 404 pages fall back to the parent's real links; grounding judged at production time; transcription consensus; a critic FAIL naming an alternative becomes a challenger. | Three consecutive fresh cloud runs (YouTube raw inputs reused), search failure rate 37% / 9% / 5%. The video species count, unstable in R14/R15, was correct in all three. |
 
 R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
 recipe wording and chess perception-to-engine execution. The actor answer also
@@ -77,6 +78,8 @@ See the [per-question ledger](FAILURE_ANALYSIS.md) and [metrics](EVALUATION.md)
 for diagnoses, rejected approaches, and proposed next fixes.
 
 ## Full harness
+
+Module numbers follow the [agent-harness-course](https://github.com/jiminelee/agent-harness-course) curriculum.
 
 - Modules 0–3: reusable `BaselineAgent` tool loop and per-task registry.
 - Module 4: per-loop bounded memory compression preserving task and complete tool transactions.
