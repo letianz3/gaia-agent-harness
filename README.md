@@ -8,22 +8,75 @@ app_file: index.html
 pinned: false
 ---
 
-# GAIA Agent Harness — Final Project
+# GAIA Agent Harness
 
-Standalone educational tool-using agent with configurable memory, planning,
-verification and multi-agent execution. See [evaluation and failure analysis](EVALUATION.md)
-and [provenance](ATTRIBUTION.md). Credentials, benchmark data, raw traces and
-downloaded engines are excluded from Git.
+A modular Python harness for tool-using LLM agents, evaluated on the 20-question
+GAIA Level-1 set of the Hugging Face Agents Course. It combines context
+compression, DAG planning with specialist agents, parallel tool execution,
+critic-driven verification and a code-owned decision layer.
 
-This project is the `final_project` of the [agent-harness-course](https://github.com/jiminelee/agent-harness-course); "Module N" below refers to that course's modules. It composes Modules 0–11 around the Hugging Face Final Assignment adapter. Features remain configurable; `02f_run_all_modules.bat` enables the full stack. Course Module 12 is a production roadmap, not an implemented production-readiness claim.
+**Result:** with `gpt-4.1-mini`, exact-match accuracy rose from **11/20** (R0) to
+**20/20 in three consecutive fresh runs** (R16), scored by the official grader.
 
-## Evaluation iterations
+> Built independently while studying the
+> [agent-harness-course](https://github.com/jiminelee/agent-harness-course)
+> curriculum. "Module N" in this repository refers to that course's modules.
+> See [ATTRIBUTION.md](ATTRIBUTION.md) for provenance.
 
-Versions below track the same 20-question development set, not course-module
-numbers. R0 is the basic full-harness version, not the earlier Modules 0–3-only
-agent. It already includes the GAIA adapter and basic task-facing tools. Every
-full-set row is a fresh run submitted to the official scorer unless explicitly
-marked as a re-score; targeted batches are labelled separately. Failed experiments
+**Contents:** [Architecture](#architecture) · [Results](#results) ·
+[Harness modules](#harness-modules) · [Repository layout](#repository-layout) ·
+[Quick start](#quick-start) · [Running evaluations](#running-evaluations) ·
+[Deployment](#deploy-to-hugging-face-spaces) · [Security](#security-boundary) ·
+[Documentation](#documentation)
+
+## Architecture
+
+```mermaid
+flowchart TD
+    Q[Question + attachments] --> P[Router / planner<br/>validated task DAG]
+    P --> S[Specialist agents<br/>parallel waves]
+    S <--> T[Tools<br/>web · files · Python · vision · audio]
+    S --> C[Candidate answer]
+    C --> R[Recovery<br/>format repair · table queries · critic]
+    R -->|missing evidence| A[Targeted acquisition<br/>and challengers]
+    A --> R
+    R --> D[Decision layer<br/>code rules, then comparison]
+    D --> O[Normalized answer]
+```
+
+Design principles:
+
+- **Code owns decisions where it can.** Table queries are written by the model,
+  reviewed independently, then executed by code; an answer backed by executed
+  Python outranks mental arithmetic; ties and exclusions are applied in code.
+- **Evidence before confidence.** Answers must be grounded in observed tool
+  output (NFKC provenance matching); an abstention can never pass verification.
+- **General mechanisms, not per-question patches.** No benchmark IDs, answer
+  keys or site-specific layouts appear in the runtime code.
+- **Bounded everything.** Turns, replans, critic rounds, tool failures and
+  model calls all have explicit limits.
+
+## Results
+
+| Version | Score | Main change |
+|---|---:|---|
+| R0 | 11/20 | Course modules composed with the GAIA adapter and tools |
+| R5 | 16/20 | Chessboard read cell by cell; engine move computed in code |
+| R7b | 17/20 | Deterministic table selection and arithmetic; bounded PDFs |
+| R12 | 19/20, 18/20 | Historical records joined to full identities |
+| R13 | 19/20, 19/20 | Observed numbered records copied by code |
+| R14 | 20/20, 18/20 | Literal table rendering; reviewed, code-executed table queries |
+| R15 | 20, 20, 18, 19, 19 | Degrade-not-fail census; normalized list schemas |
+| **R16** | **20/20, 20/20, 20/20** | Multiscale image tiling; execution-backed decisions |
+
+The 20 questions are a repeatedly used development set, so these scores do not
+establish held-out generalization. Token totals exclude audio transcription.
+
+<details>
+<summary><b>Full iteration log (R0–R16): commits, tokens, rationale and feedback</b></summary>
+
+Every full-set row is a fresh run submitted to the official scorer unless marked
+as a re-score (*); targeted batches are labelled separately. Failed experiments
 are retained in Git, without mixing answers across runs.
 
 | Version / runtime commit | Score | Chat tokens | Change and reason | Feedback |
@@ -51,178 +104,143 @@ are retained in Git, without mixing answers across runs.
 | R15 · degrade-not-fail, schema normalization | **20/20, 20/20**, 18, 19, 19 | 429,657–577,925 | Per-group census degradation, broader abstention detection, normalized list-contract flags, one given name for "first name" requests. Perception routing and census adjudication were measured and rejected. | All non-video questions correct in both r15b runs; the video species count fails in about half of runs because of visual recognition. Not stable 20/20. |
 | R16 · multiscale perception + execution-backed decisions | **20/20, 20/20, 20/20** | 575,555 / 614,890 / 595,394 | Full image plus overlapping enlarged tiles for vision; coarse-to-fine video census; requested-category counting; executed computation outranks mental reasoning; abstentions cannot pass verification; identity-gap lead ranking; 404 pages fall back to the parent's real links; grounding judged at production time; transcription consensus; a critic FAIL naming an alternative becomes a challenger. | Three consecutive fresh cloud runs (YouTube raw inputs reused), search failure rate 37% / 9% / 5%. The video species count, unstable in R14/R15, was correct in all three. |
 
-R5 uses **18.8% fewer chat tokens** than R1. The clearest reproduced repairs are
-recipe wording and chess perception-to-engine execution. The actor answer also
-became correct while a funding identifier regressed, giving **three gains minus
-one regression = two net gains** over R1. Those unchanged web paths vary between
-runs; this is not a controlled causal ablation or proof of generalization.
+*R8b and R12's starred scores apply only final formatting to existing answer
+sets; no new model calls were made. Historical runs used different prompts and
+cache states, so their scores are not controlled architecture comparisons.
 
-*R8b is a normalization-only re-score of R8a, not a second fresh model run.
-R12's starred scores likewise apply only final formatting to existing answers;
-129 local tests pass. These 20 questions are a repeatedly used development set,
-so a perfect score does not establish held-out generalization.
-R8 uses 5.4% more chat tokens than R7b. Video repair reproduced in targeted and
-full runs; botanical classification succeeded in the full run but needs further
-stability checks. Source identity and historical retrieval remain limitations.
-R9 passes 103 local tests, including negative routing cases and reuse of the
-property executor for a non-botanical domain. It is a fresh 18/20 run; chat tokens
-rose 27.3% versus R8, mainly in historical and funding retrieval.
-R9 also reproduces R8's correct video and botanical-list answers in a fresh full
-run. This supports the earlier repairs' repeatability across these two runs;
-other web answers still fluctuate, so overall answer stability is not established.
-See [code-owned contracts](CONTRACTS.md) and [evaluation details](EVALUATION.md).
-Token totals exclude audio transcription. R0 is preserved as a local source
-snapshot. Stable tags preserve R1/R4/R5, and
-experiment branches retain R2/R3. Raw traces and attachments remain local.
-See the [per-question ledger](FAILURE_ANALYSIS.md) and [metrics](EVALUATION.md)
-for diagnoses, rejected approaches, and proposed next fixes.
+</details>
 
-## Full harness
+Diagnoses, rejected approaches and per-round metrics are in
+[EVALUATION.md](EVALUATION.md) and [FAILURE_ANALYSIS.md](FAILURE_ANALYSIS.md).
 
-Module numbers follow the [agent-harness-course](https://github.com/jiminelee/agent-harness-course) curriculum.
+## Harness modules
 
-- Modules 0–3: reusable `BaselineAgent` tool loop and per-task registry.
-- Module 4: per-loop bounded memory compression preserving task and complete tool transactions.
-- Module 5/10: `orchestration.py` combines routing and planning in one model request. It validates task IDs, specialist names and acyclic dependencies. Ready DAG nodes run in bounded waves; dependent nodes receive predecessor results. Specialists are registered delegation tools, each with a fresh history and restricted tool set. A failed predecessor prevents dependent execution. Results are evidence, not guaranteed truth.
-- Module 6: bounded tool failures and independent JSON-mode critique. Separate format/equivalence repair from factual verification; repair from existing evidence first, or acquire a concrete missing fact with at most three tool-loop turns. Malformed reviews do not restart research; unchanged candidates are not reviewed twice. A critic PASS is not a correctness guarantee.
-- Module 7: bounded parallel read-only tool calls, serial unsafe/media calls, ordered results. Identical signatures stay serial so failure limits cannot be bypassed. Specialist waves and tool batches have separate concurrency caps (not a global provider RPM limiter).
-- Module 8: JSON Schema validation, dangerous-tool metadata, default-deny approval callback and audit events. Applications may supply `registry.approval(name, arguments)` backed by a real human decision. No destructive demo tool is exposed to GAIA. Python AST restrictions plus a subprocess are not a security sandbox.
-- Module 9: persistent traces, run outcomes, specialist identities, model request hashes and `python scripts/view_trace.py PATH` timeline viewer.
-- Module 11: importable package, centralized configuration, per-task model response cache, content-addressed system-prompt versions, call budget, configurable chat-cost estimates. Zero configured pricing means unknown cost; transcription and third-party fees are excluded. Cache entries do not survive the task and cached responses are not billed twice.
+| Module | Implementation |
+|---|---|
+| 0–3 · Agent loop | Reusable `BaselineAgent` tool loop with a per-task tool registry and bounded turns. |
+| 4 · Memory | Bounded context compression that keeps the task and recent messages verbatim and summarizes only complete older tool transactions. |
+| 5/10 · Planning and multi-agent | One request routes and plans a task DAG (validated IDs, specialists, acyclic dependencies). Ready nodes run in bounded waves; each specialist has a fresh history and a restricted tool set. |
+| 6 · Recovery and verification | Independent JSON-mode critic; format repair separated from factual verification; targeted evidence acquisition in at most three tool-loop turns. |
+| 7 · Parallel tools | Read-only calls run in parallel with ordered results; unsafe and media calls stay serial. |
+| 8 · Guardrails | JSON Schema validation, dangerous-tool metadata, default-deny approval callback and audit events. |
+| 9 · Observability | Persistent per-task traces (latency, tokens, tool calls, errors) and a timeline viewer: `python scripts/view_trace.py PATH`. |
+| 11 · Packaging and runtime | Importable package, central configuration, per-task response cache, versioned system prompts, call budget and cost estimates. |
 
-`python scripts/run_full_experiment.py` runs exactly 20 fetched questions in a new directory under `.runs/full_TIMESTAMP`, copies only prior attachments, snapshots source files, then submits the answers to the official scorer. This command consumes model tokens and writes a leaderboard submission; it does not publish source code to the Space. `02f` runs the suite without submitting; use `04` for that workflow's cached answers.
+Module 12 of the course is a production roadmap and is not claimed as
+implemented. Memory, planning, recovery, replanning, parallel tools and
+multi-agent routing each have an `AGENT_*_ENABLED` flag; `02f_run_all_modules.bat`
+enables the full stack.
 
-All-module experiments use fresh external-tool caches. Historical runs used different prompts and cache states, so their scores are not controlled architecture comparisons. Do not use leaderboard probing to choose answers for a reported agent run.
+## Repository layout
 
-Compare measured usage without model calls or benchmark labels:
-`python scripts/compare_runs.py .runs/full_FIRST .runs/full_SECOND`.
-Detailed experiments and limitations are retained in [EVALUATION.md](EVALUATION.md).
+```text
+gaia_agent/
+  agent.py              agent loop, answer recovery and candidate comparison
+  orchestration.py      validated task DAG and specialist-as-tool execution
+  decision.py           answer selection, separated from confidence
+  verification.py       evidence-based candidate comparison
+  table_queries.py      model-written, reviewed, code-executed table queries
+  perception.py         multiscale image views for vision calls
+  resolution.py         item-level evidence, temporal joins and visual censuses
+  tools.py              web, file, transcript and guarded Python tools
+  tracing.py            structured JSON traces and metrics
+  ...                   config, runtime, memory, policies, workflows
+scripts/                full and targeted experiments, run comparison, trace viewer
+tests/                  offline unit tests (no model calls)
+app.py, cli.py          Gradio app and local CLI
+*.bat                   Windows workflow scripts
+```
 
-## What is implemented
-
-- basic OpenAI-compatible Chat Completions tool loop with bounded turns
-- transport-level LLM request retries (reliability only, not an agent recovery policy)
-- real web search, page reading, and YouTube caption retrieval
-- guarded calculation-oriented Python execution
-- task-scoped attachment access for text, Python, CSV, PDF, DOCX, and XLSX
-- image input and OpenAI audio transcription
-- official `/questions`, `/random-question`, `/files/{task_id}`, and `/submit` flows
-- per-task JSON traces containing latency, token counts, tool calls, and errors
-- incremental answer caching, so an interrupted 20-question run still leaves evidence
-- separate **run** and **submit** buttons to prevent accidental leaderboard submissions
-- temperature-zero sampling (not guaranteed deterministic) plus persistent replay of identical read-only web tool observations within the selected run directory
-- Module 4 memory compression that always preserves the original task, summarizes only older complete tool transactions, and keeps recent messages verbatim
-
-The official grader compares answers case-insensitively after trimming outer whitespace. The system prompt therefore requires answer-only output, while `normalize_answer()` removes common wrapper text, duplicate lines, inconsistent comma spacing, and applies alphabetical ordering only when the question explicitly requests it.
-
-## Experiment boundary
-
-This project intentionally separates five layers:
-
-- **Agent core:** basic loop, tool calling, and Tool Registry
-- **External capabilities:** web/page search, Python, YouTube, and attachment readers
-- **GAIA adapter:** questions, files, exact-match cleanup, and submission
-- **Evaluation infrastructure:** traces, latency, token counts, and saved answers
-- **Deployment:** Gradio, Hugging Face OAuth, and the local CLI
-
-The original pre-memory run scored **10/20 (50%)**. Memory can be switched off with `AGENT_MEMORY_ENABLED=false`. Planning, recovery, parallel tools and multi-agent routing have separate feature flags; enable matching configurations when making comparisons. Historical best scores alone do not establish causal improvements.
-
-## Local setup
-
-From this directory:
+## Quick start
 
 ```powershell
 py -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-```
-
-Set `OPENAI_API_KEY` in your shell (the Python code deliberately does not auto-load secret files). To use the GAIA attachment fallback, first accept the dataset terms for `gaia-benchmark/GAIA`, then also set `HF_TOKEN`:
-
-```powershell
+python -m pip install -r requirements.txt -r requirements-dev.txt
 $env:OPENAI_API_KEY = "your-key"
-$env:HF_TOKEN = "your-read-token"
-python cli.py random
+$env:HF_TOKEN = "your-read-token"   # optional, see below
 ```
 
-Other useful commands:
+The code deliberately does not auto-load secret files; set keys in the shell.
+`HF_TOKEN` enables the attachment fallback to the gated `gaia-benchmark/GAIA`
+dataset (accept its terms first).
 
 ```powershell
 python cli.py ask "What is 17 * 23? Return only the number."
-python cli.py all
-python app.py
-pytest -q
+python cli.py random      # one random benchmark question
+python cli.py all         # all 20 questions
+python app.py             # Gradio UI
+pytest -q                 # offline tests
 ```
 
-For tests, install `requirements-dev.txt` first. For local chess analysis,
-download Stockfish from its official distribution and set `STOCKFISH_PATH` to
-the executable. A local Windows executable under `.tools/stockfish/` is also
-detected. Without an engine, the tool attempts Lichess cloud evaluation; a cloud
-cache miss is not a solved position. The engine does not validate image recognition.
+For chess positions, set `STOCKFISH_PATH` to a Stockfish executable from the
+[official distribution](https://stockfishchess.org/download/) (or place it under
+`.tools/stockfish/`). Without an engine the tool falls back to Lichess cloud
+evaluation.
 
-The bundled Windows publishing/submission scripts retain the author's
-`zzzt19/gaia-baseline-agent` Space settings. Change those settings to your own
-account before publishing or submitting. A local run incurs provider usage;
-submitting cached answers does not rerun the agent.
+## Running evaluations
 
-Artifacts are written to `.runs/`:
-
-```text
-.runs/
-  answers.json
-  experiments/
-    <timestamp>_<label>/
-      answers.json
-      summary.json
-      traces/
-  <task-id>/
-    files/
-    tool_cache.json
-    trace.json
+```powershell
+python scripts/run_full_experiment.py
 ```
+
+Runs exactly 20 fetched questions in a new `.runs/full_TIMESTAMP` directory with
+fresh tool caches, snapshots the source, and submits to the official scorer.
+This consumes model tokens and writes a leaderboard submission. To compare two
+runs without model calls or labels:
+
+```powershell
+python scripts/compare_runs.py .runs/full_FIRST .runs/full_SECOND
+```
+
+The official grader compares answers case-insensitively after trimming
+whitespace, so the agent returns answer-only output and `normalize_answer()`
+removes wrapper text and applies ordering only when the question asks for it.
+Do not use leaderboard probing to choose answers for a reported run.
+
+<details>
+<summary><b>Windows workflow scripts</b></summary>
+
+| Script | Purpose |
+|---|---|
+| `00_hf_login_once.bat` | Cache the Hugging Face login locally. |
+| `00_save_openai_key_once.bat` | Prompt once and persist `OPENAI_API_KEY` as a user environment variable. |
+| `01_test_local.bat` | Ruff and pytest, no model calls. |
+| `02_run_gaia_all.bat` | Run all 20 questions and archive an experiment snapshot. |
+| `02a`–`02e` | Controlled runs enabling one module at a time (baseline, memory, planning, recovery, parallel tools). |
+| `02f_run_all_modules.bat` | Run with every module enabled. |
+| `03_publish_space.bat` | Upload source and configuration files to the public Space. |
+| `04_submit_cached_answers.bat` | Submit cached answers without rerunning the agent. |
+
+The scripts never store or upload secrets. They use the author's
+`zzzt19/gaia-baseline-agent` Space; change it before publishing or submitting.
+
+</details>
 
 ## Deploy to Hugging Face Spaces
 
-1. Create a public Static Space to host the source code, or use a Gradio Space if your account supports compute Spaces.
-2. Copy the **contents of this directory** to the Space repository root.
-3. For the free Static workflow, run and score locally; the Space is only the public source-code URL.
-4. Upload with `03_publish_space.bat`, then submit locally with `04_submit_cached_answers.bat`.
+1. Create a public Static Space (or a Gradio Space if your account supports compute).
+2. Copy the contents of this directory to the Space repository root.
+3. With the free Static workflow, run and score locally; the Space only hosts the source.
+4. Publish with `03_publish_space.bat`, then submit with `04_submit_cached_answers.bat`.
 
-The leaderboard expects a public `https://huggingface.co/spaces/<user>/<space>/tree/main` code URL. The Space runtime supplies `SPACE_ID`, which the app uses to build it.
-
-### Current scoring-service caveat
-
-During local verification on 2026-08-30, the official `/questions` and `/random-question` endpoints worked, but `/files/{task_id}` returned HTTP 404 for all five questions that advertised attachments. On a 404, the client now uses an authenticated fallback to the official gated `gaia-benchmark/GAIA` dataset. Accept that dataset's terms and provide `HF_TOKEN`; without a token, the question still runs without the unavailable attachment.
-
-## Windows workflow scripts
-
-- `00_hf_login_once.bat`: cache the fine-grained Hugging Face login locally.
-- `00_save_openai_key_once.bat`: securely prompt once and persist `OPENAI_API_KEY` as a Windows user environment variable.
-- `01_test_local.bat`: run Ruff and pytest without model API calls.
-- `02_run_gaia_all.bat`: run all 20 questions, update `.runs/answers.json`, and archive an experiment snapshot (uses model tokens).
-- `02a_run_stable_baseline.bat`: run the controlled agent with Memory disabled.
-- `02b_run_module04_memory.bat`: run the same controlled agent with Module 4 Memory enabled.
-- `03_publish_space.bat`: upload only source/configuration files to the public Static Space.
-- `04_submit_cached_answers.bat`: submit the existing cached answers without rerunning the agent.
-
-The scripts never store or upload secret values. Identical search, page, and YouTube-caption calls are cached per task to reduce external-result variance across module experiments.
+The leaderboard expects a public `https://huggingface.co/spaces/<user>/<space>/tree/main`
+code URL. If the scoring service's `/files/{task_id}` endpoint returns 404 (seen on
+2026-08-30), the client falls back to the gated GAIA dataset via `HF_TOKEN`.
 
 ## Security boundary
 
-`run_python` rejects dangerous imports, common dynamic-execution builtins, dunder access, long programs, and runs in an isolated child process with a timeout. This is a useful educational guardrail, not a mathematically secure Python sandbox. Keep the Space scoped to the public GAIA benchmark and do not expose arbitrary anonymous prompts without stronger container isolation.
+`run_python` rejects dangerous imports, dynamic-execution builtins, dunder access
+and long programs, and runs in a child process with a timeout. This is an
+educational guardrail, not a secure sandbox; do not expose the Space to arbitrary
+anonymous prompts without container isolation. `fetch_url` rejects private,
+loopback and link-local destinations to reduce SSRF risk.
 
-`fetch_url` also rejects private, loopback, and link-local destinations to reduce SSRF risk.
+## Documentation
 
-## Suggested experiment sequence
+- [EVALUATION.md](EVALUATION.md): per-round experiments, metrics and limitations
+- [FAILURE_ANALYSIS.md](FAILURE_ANALYSIS.md): per-question failure ledger
+- [CONTRACTS.md](CONTRACTS.md): code-owned task contracts
+- [ATTRIBUTION.md](ATTRIBUTION.md): provenance, data and dependency licenses
 
-Keep the 20 questions fixed and record each version in source control:
-
-1. Controlled baseline (`02a_run_stable_baseline.bat`)
-2. Memory / context compression
-3. Explicit planning before tool use
-4. Reflection / answer critic
-5. Safe parallel search/fetch calls
-6. Specialized researcher / file analyst orchestration
-
-Compare score, latency, input/output tokens, tool-call count, and failure categories from the saved traces. Do not optimize on hidden answers; improve the general mechanism and rerun the same harness.
+Credentials, benchmark data, raw traces and downloaded engines are excluded from Git.

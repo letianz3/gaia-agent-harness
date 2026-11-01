@@ -1,9 +1,10 @@
 # Provenance and dependencies
 
-This standalone project was developed as the `final_project` extension of
-[agent-harness-course](https://github.com/jiminelee/agent-harness-course), using
-the course's module progression as a learning roadmap. The surrounding course
-repository and its exercises are not included in this publication.
+This project was built independently while studying the
+[agent-harness-course](https://github.com/jiminelee/agent-harness-course)
+curriculum, using its module progression as a learning roadmap; "Module N" in
+this repository refers to that course's modules. The course repository and its
+exercises are not included in this publication.
 
 The benchmark adapter follows the workflow of the
 [Hugging Face Agents Course Final Assignment](https://huggingface.co/learn/agents-course/unit4/hands-on)
