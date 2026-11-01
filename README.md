@@ -58,18 +58,27 @@ Design principles:
 
 ## Results
 
-| Version | Score | Main change |
-|---|---:|---|
-| R0 | 11/20 | Course modules composed with the GAIA adapter and tools |
-| R5 | 16/20 | Chessboard read cell by cell; engine move computed in code |
-| R7b | 17/20 | Deterministic table selection and arithmetic; bounded PDFs |
-| R12 | 19/20, 18/20 | Historical records joined to full identities |
-| R13 | 19/20, 19/20 | Observed numbered records copied by code |
-| R14 | 20/20, 18/20 | Literal table rendering; reviewed, code-executed table queries |
-| R15 | 20, 20, 18, 19, 19 | Degrade-not-fail census; normalized list schemas |
-| **R16** | **20/20, 20/20, 20/20** | Multiscale image tiling; execution-backed decisions |
+| Version | Score | Main change | Outcome |
+|---|---:|---|---|
+| R0 | 11/20 | Course modules composed with the GAIA adapter and tools | Baseline |
+| R1 | 14/20 | Targeted evidence recovery instead of broad replanning | Promoted |
+| R2 | 12/20 | Completion contracts and visual reinspection | Over-strict; not promoted |
+| R3 | 13/20 | Fixed reinspection, relaxed unavailable answers | Still below R1; reverted |
+| R4 | 15/20 | Exact source spans; list exclusions applied in code | Promoted |
+| R5 | 16/20 | Chessboard read cell by cell; engine move computed in code | Promoted |
+| R6 | 15/20 | Streaming PDF budget for large sources | Other regressions; not promoted |
+| R7a | 14/20 | Strict code-owned entity chains | Coverage loss; kept as experiment |
+| R7b | 17/20 | Deterministic table arithmetic; strict chains opt-in | Promoted |
+| R8 | 17/20 | Per-segment video inspection; plant-part classification | Promoted |
+| R9 | 18/20 | Optional domain policies isolated from the core loop | Promoted |
+| R12 | 19/20, 18/20 | Historical records joined to full identities | Promoted |
+| R13 | 19/20, 19/20 | Observed numbered records copied by code | Promoted |
+| R14 | 20/20, 18/20 | Literal table rendering; reviewed, code-executed table queries | Promoted |
+| R15 | 20, 20, 18, 19, 19 | Degrade-not-fail census; normalized list schemas | Promoted |
+| **R16** | **20/20, 20/20, 20/20** | Multiscale image tiling; execution-backed decisions | **Current** |
 
-The 20 questions are a repeatedly used development set, so these scores do not
+Only fresh full-set runs are listed; R10–R11 were targeted experiments (see the
+full log). The 20 questions are a repeatedly used development set, so these scores do not
 establish held-out generalization. Token totals exclude audio transcription.
 
 <details>
@@ -114,6 +123,9 @@ Diagnoses, rejected approaches and per-round metrics are in
 [EVALUATION.md](EVALUATION.md) and [FAILURE_ANALYSIS.md](FAILURE_ANALYSIS.md).
 
 ## Harness modules
+
+Module numbers follow the [agent-harness-course](https://github.com/jiminelee/agent-harness-course)
+curriculum, which this harness was built against as a learning roadmap.
 
 | Module | Implementation |
 |---|---|
