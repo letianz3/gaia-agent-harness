@@ -108,6 +108,19 @@ def select_verified(report,evidence):
 
 
 def compare_answers(agent,question,first,second,evidence,trace):
+    from .decision import execution_backed, is_abstention
+    # Decided by code before any model judgement: an executed computation beats
+    # unexecuted reasoning, and a concrete answer beats an abstention.
+    backed=[c for c in (first,second) if execution_backed(c,trace)]
+    if len(backed)==1:
+        trace.add('candidate_selection',selected='execution_backed',candidates={'A':first,'B':second},
+                  answer=backed[0],reason='exactly one candidate equals the output of an executed computation')
+        return backed[0]
+    abstaining=[is_abstention(c) for c in (first,second)]
+    if abstaining.count(True)==1:
+        concrete=second if abstaining[0] else first
+        trace.add('candidate_selection',selected='concrete_over_abstention',candidates={'A':first,'B':second},answer=concrete)
+        return concrete
     evidence=direct_evidence(evidence)
     # Deliberately do not label either candidate as original, revised, or preferred.
     prompt=('Evaluate BOTH candidates independently against exactly the SAME source evidence. '

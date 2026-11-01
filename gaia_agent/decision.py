@@ -17,7 +17,9 @@ _ABSTENTION = re.compile(
     r'|not (?:found|available|determinable|enough|sufficient|verifiable)'
     r'|no (?:verifiable |reliable |direct |sufficient |available )?(?:information|evidence|data|answer|record)s?\b'
     r'|insufficient\b|there is no (?:verifiable |direct |available )?(?:information|evidence|data)'
-    r'|(?:the )?(?:answer|information) (?:is |was )?(?:not available|unavailable|cannot be determined))', re.I)
+    r'|(?:the )?(?:answer|information) (?:is |was )?(?:not available|unavailable|cannot be determined)'
+    r'|no(?:ne| \w+(?: \w+)?) (?:is|was|are|were) (?:mentioned|found|listed|given|named|provided|identified)\b'
+    r'|(?:it is |it was )?not (?:mentioned|listed|named|given|identified)\b)', re.I)
 
 
 def is_abstention(answer):
@@ -84,3 +86,24 @@ def submission_value(agent, question, candidate, trace, role):
     trace.add('submission_form', role=role, original=candidate[:2000], value=result,
               scope='form only; extracted value must occur in the candidate text')
     return result
+
+
+def executed_values(trace):
+    """Outputs of successful code executions; a value computed by running code
+    outranks the same model's unexecuted reasoning about the same data."""
+    values = set()
+    for event in trace.events:
+        if (event.get('type') == 'tool_call' and event.get('name') == 'run_python' and event.get('succeeded')
+                and not str(event.get('result', '')).startswith('(completed with no output')):
+            lines = [line.strip() for line in str(event.get('result', '')).strip().splitlines() if line.strip()]
+            if lines:
+                values.add(_value_key(lines[-1]))
+    return values
+
+
+def _value_key(text):
+    return ' '.join(re.sub(r'\s*,\s*', ', ', str(text).strip().strip('.')).split()).casefold()
+
+
+def execution_backed(candidate, trace):
+    return _value_key(candidate) in executed_values(trace)

@@ -205,3 +205,60 @@ def test_common_abstention_phrasings_are_recognized(text):
 @pytest.mark.parametrize('text', ['No', 'Nova Scotia', 'Information Age', 'None of the above', '3'])
 def test_ordinary_answers_are_not_abstentions(text):
     assert not is_abstention(text)
+
+
+@pytest.mark.parametrize('text', ['No surname is mentioned.', 'No veterinarian was found.', 'None is mentioned',
+                                  'Not mentioned in the exercises.'])
+def test_absence_claims_are_abstentions(text):
+    assert is_abstention(text)
+
+
+def _python(result, ok=True):
+    return dict(type='tool_call', name='run_python', succeeded=ok, result=result)
+
+
+def test_executed_computation_outranks_unexecuted_reasoning():
+    """Replays R16 run 1: Python printed 'b, e'; the comparator preferred a mental 'a, b, d, e'."""
+    from gaia_agent.verification import compare_answers
+    trace = Trace('t', 'q')
+    trace.events += [_python('(completed with no output; use print() to return a result)'), _python('pairs checked\nb, e')]
+    agent = SimpleNamespace(_plain_completion=lambda *a, **k: pytest.fail('no model comparison needed'))
+    assert compare_answers(agent, 'Which elements?', 'a, b, d, e', 'b, e', '', trace) == 'b, e'
+    assert compare_answers(agent, 'Which elements?', 'b,e', 'a, b, d, e', '', trace) == 'b,e'
+
+
+def test_execution_rule_steps_aside_when_both_or_neither_are_computed():
+    from gaia_agent.decision import execution_backed
+    trace = Trace('t', 'q')
+    trace.events += [_python('42'), _python('43')]
+    assert execution_backed('42', trace) and execution_backed('43', trace)
+    assert not execution_backed('44', trace)
+    failed = Trace('t', 'q')
+    failed.events.append(_python('b, e', ok=False))
+    assert not execution_backed('b, e', failed)
+
+
+def test_concrete_answer_beats_an_absence_claim_in_comparison():
+    from gaia_agent.verification import compare_answers
+    agent = SimpleNamespace(_plain_completion=lambda *a, **k: pytest.fail('no model comparison needed'))
+    assert compare_answers(agent, 'Who?', 'No surname is mentioned.', 'Louvrier', '', Trace('t', 'q')) == 'Louvrier'
+
+
+def test_a_passed_absence_claim_still_triggers_research(monkeypatch):
+    """Replays R16 run 1: the critic passed 'No surname is mentioned.' from unconfirmed pages."""
+    from gaia_agent.agent import BaselineAgent
+    agent = object.__new__(BaselineAgent)
+    agent.settings = SimpleNamespace(max_reflection_rounds=2, replanning_enabled=True, max_replans=1,
+                                     planning_turns_per_subtask=6, specialized_workflows_enabled=False)
+    def critique(*args):
+        args[3].add('critique', next_action='none', target='')
+        return 'PASS', 'not mentioned in the pages'
+    monkeypatch.setattr(agent, '_critique_answer', critique)
+    targets = []
+    def revise(question, context, incumbent, feedback, *rest):
+        targets.append(feedback)
+        return 'Louvrier'
+    monkeypatch.setattr(agent, '_revise_answer', revise)
+    trace = Trace('t', 'What is the surname of the equine veterinarian mentioned in 1.E Exercises?')
+    assert agent._recover_answer(trace.question, trace.question, 'No surname is mentioned.', None, trace, None, '') == 'Louvrier'
+    assert targets and 'answers: What is the surname' in targets[0]

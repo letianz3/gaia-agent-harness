@@ -983,6 +983,13 @@ Respond ONLY as JSON:
         if computed is not None:
             return computed
         verdict, feedback = self._critique_answer(question, incumbent, evidence, trace, 1)
+        forced_target = ''
+        if verdict == "PASS" and is_abstention(incumbent):
+            # "Not mentioned" / "no information" is a failure to answer, not an answer:
+            # it can only trigger research, never be verified.
+            forced_target = 'Find the source and the specific fact that answers: ' + question
+            trace.add('critique_overridden', reason='an abstention or absence claim is not a verifiable answer')
+            verdict = 'UNCERTAIN'
         if verdict == "PASS":
             trace.add("candidate_selection", selected="incumbent", reason="initial_pass")
             return incumbent
@@ -990,6 +997,8 @@ Respond ONLY as JSON:
         review = next((e for e in reversed(trace.events) if e['type'] == 'critique'), {})
         action = review.get('next_action', 'none')
         target = review.get('target', '').strip()
+        if forced_target:
+            action, target = 'acquire_evidence', forced_target
         # A broken reviewer is not evidence that the solver needs a new DAG.
         if self.settings.max_reflection_rounds < 2 or review.get('parse_failed'):
             return unresolved(self, trace, 'review unusable or verification budget exhausted', incumbent)
