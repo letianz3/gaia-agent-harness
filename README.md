@@ -69,7 +69,8 @@ Design principles:
 | R15 | 20, 20, 18, 19, 19 | Degrade-not-fail census; normalized list schemas |
 | **R16** | **20/20, 20/20, 20/20** | Multiscale image tiling; execution-backed decisions |
 
-The 20 questions are a repeatedly used development set, so these scores do not
+Every version is preserved as a Git tag (`stable/*`, `checkpoint/*`, and `archive/*`
+for experiments that were not promoted). The 20 questions are a repeatedly used development set, so these scores do not
 establish held-out generalization. Token totals exclude audio transcription.
 
 <details>
