@@ -116,6 +116,22 @@ class BaselineAgent:
         )
         self.gateway = ModelGateway(self.settings)
 
+    def _transcribe_consensus(self, path: Path) -> str:
+        """Speech recognition varies between calls ("ripe" vs "sliced strawberries").
+
+        Two transcriptions that agree are used directly; otherwise a third is made
+        and the medoid (the transcript most similar to the others) is used, so one
+        call's local misrecognition is outvoted. Audio calls are cheap.
+        """
+        from difflib import SequenceMatcher
+        first, second = self._transcribe(path), self._transcribe(path)
+        if ' '.join(first.split()).casefold() == ' '.join(second.split()).casefold():
+            return first
+        texts = [first, second, self._transcribe(path)]
+        def similarity(i):
+            return sum(SequenceMatcher(None, texts[i], texts[j]).ratio() for j in range(3) if j != i)
+        return texts[max(range(3), key=similarity)]
+
     def _transcribe(self, path: Path) -> str:
         model = __import__("os").getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
         with path.open("rb") as audio:
@@ -133,7 +149,7 @@ class BaselineAgent:
         for path in files:
             if path.suffix.lower() in AUDIO_SUFFIXES:
                 try:
-                    audio_notes.append(f"Transcript of {path.name}:\n{self._transcribe(path)}")
+                    audio_notes.append(f"Transcript of {path.name}:\n{self._transcribe_consensus(path)}")
                 except Exception as exc:  # noqa: BLE001 - provider failures become agent context.
                     audio_notes.append(f"Audio transcription failed for {path.name}: {exc}")
             elif path.suffix.lower() in IMAGE_SUFFIXES:
@@ -232,7 +248,7 @@ class BaselineAgent:
         if re.search(r'\b(say|said|dialogue|response|hear|spoken|speech|quote)\b', question, re.I):
             try:
                 audio_path = download_youtube_audio(f"https://www.youtube.com/watch?v={video_id}", media_dir)
-                audio_note = "Audio transcription (may contain recognition errors):\n" + self._transcribe(audio_path)
+                audio_note = "Audio transcription (may contain recognition errors):\n" + self._transcribe_consensus(audio_path)
                 trace.add("video_audio", result=audio_note[:10000], usage_accounted=False)
             except Exception as exc:
                 audio_note = f"Audio unavailable: {type(exc).__name__}. Dialogue cannot be verified from frames."
@@ -969,10 +985,14 @@ Respond ONLY as JSON:
         Unresolved verification is reported in the trace; answer selection is
         delegated to decision.unresolved (best supported candidate by default).
         """
-        from .decision import is_abstention, submission_value, unresolved
+        from .decision import grounded, is_abstention, submission_value, unresolved
         from .verification import compare_answers, fetch_search_only_sources
 
         incumbent = normalize_answer(submission_value(self, question, answer, trace, 'incumbent'), question)
+        if not is_abstention(incumbent):
+            # Judged before verification reads anything new: a value that appears in no
+            # input, observation or worker result at the time it was produced is fabricated.
+            trace.add('answer_grounding', value=incumbent, grounded=grounded(incumbent, trace.events))
         fetch_search_only_sources(registry, trace)
         evidence = evidence_packet(trace.events, focus=(question, incumbent)) or evidence
         trace.add('verification_evidence', candidates=[incumbent], packet=evidence)

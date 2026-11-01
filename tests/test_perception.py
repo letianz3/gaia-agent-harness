@@ -101,3 +101,32 @@ def test_only_the_requested_category_is_counted():
     frames = {'frames': [{'timestamp': 1.0, 'groups': [group('Emperor'), group('Petrel'), seal]}]}
     assert census_count(frames, [1.0]) == 2
     assert census_count(frames, [1.0], details=True)['excluded_groups'] == 1
+
+
+def test_transcription_consensus_outvotes_one_misrecognition():
+    from gaia_agent.agent import BaselineAgent
+    agent = object.__new__(BaselineAgent)
+    replies = iter(['combine sliced strawberries, sugar', 'combine ripe strawberries, sugar', 'combine ripe strawberries, sugar'])
+    calls = []
+    agent._transcribe = lambda path: (calls.append(path), next(replies))[1]
+    assert agent._transcribe_consensus(Path('a.mp3')) == 'combine ripe strawberries, sugar'
+    assert len(calls) == 3
+    agreeing = iter(['same words', 'Same  words'])
+    agent._transcribe = lambda path: next(agreeing)
+    assert agent._transcribe_consensus(Path('a.mp3')) == 'same words'  # two agreeing calls suffice
+
+
+def test_grounding_is_judged_at_production_time():
+    from gaia_agent.decision import grounded, unresolved
+    events = [dict(type='input_evidence', result='Who did the actor play in Magda M.?'),
+              dict(type='tool_call', name='search_web', succeeded=False, result='ERROR'),
+              dict(type='subtask_result', result='No evidence found for the actor.')]
+    assert not grounded('Paweł', events)          # fabricated: nothing available mentioned it
+    assert grounded('Magda M.', events) and grounded('42', events)
+    trace = Trace('t', 'q')
+    trace.events += events
+    trace.add('answer_grounding', value='Paweł', grounded=False)
+    trace.add('tool_call', name='fetch_url', succeeded=True, result='Bartek Kasprzykowski | Wojciech Płaska')
+    agent = SimpleNamespace(settings=SimpleNamespace(abstain_on_unverified=False))
+    report = {'candidates': [{'id': 'A', 'checks': {'x': 'PASS'}}, {'id': 'B', 'checks': {'x': 'PASS'}}]}
+    assert unresolved(agent, trace, 'tie', 'Paweł', 'Wojciech', report) == 'Wojciech'

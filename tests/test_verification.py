@@ -165,3 +165,32 @@ def test_identity_gap_reads_the_named_source_before_the_top_ranked_page():
     fetched.clear()
     fetch_search_only_sources(registry, base(Trace('t', question)))  # no identity gap: unchanged default
     assert fetched == []  # the only top lead was already read
+
+
+def test_missing_page_returns_the_parents_closest_real_links(monkeypatch):
+    import json
+    import pytest
+    from types import SimpleNamespace
+    import gaia_agent.tools as tools
+    parent = (b'<html><body><a href="/Book/01%3A_World/1.E%3A_Exercises">1.E: Exercises</a>'
+              b'<a href="/Book/01%3A_World/1.1%3A_Intro">1.1: Intro</a></body></html>')
+    def get(url, **kwargs):
+        status = 404 if url.endswith('1.E_Exercises') else 200
+        return SimpleNamespace(status_code=status, is_redirect=False, iter_content=lambda **kw: iter([parent]),
+                               close=lambda: None, raise_for_status=lambda: None)
+    monkeypatch.setattr(tools, '_validate_public_url', lambda u: u)
+    monkeypatch.setattr(tools.requests, 'get', get)
+    with pytest.raises(ValueError) as error:
+        tools.fetch_url('https://example.org/Book/01%3A_World/1.E_Exercises')
+    message = str(error.value)
+    assert message.startswith('404 Not Found') and 'parent page exists' in message
+    links = json.loads(message.split('guessing): ', 1)[1])
+    assert links[0][1] == 'https://example.org/Book/01%3A_World/1.E%3A_Exercises'
+
+
+def test_query_echo_spam_is_not_a_source():
+    from gaia_agent.verification import query_echo
+    question = ('What is the surname of the equine veterinarian mentioned in 1.E Exercises from the chemistry '
+                'materials licensed by Marisa Alviar-Agnew & Henry Agnew in Introductory Chemistry?')
+    assert query_echo('https://shop.example/market/equine_veterinarian_surname_marisa_alviar_agnew_henry_agnew_exercises', question)
+    assert not query_echo('https://chem.example.org/Bookshelves/Introductory_Chemistry/Introductory_Chemistry_(CK-12)', question)

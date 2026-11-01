@@ -177,6 +177,37 @@ def bounded_document_text(text, query=None, limit=30000):
     return text[:head_size] + marker + focused + marker + text[-tail_size:]
 
 
+def nearby_links(url: str, limit: int = 8) -> str:
+    """For a missing page, the parent page's real links most similar to the requested URL.
+
+    Guessed URLs often differ from real ones by punctuation or encoding (a colon,
+    an underscore). Real links are discovery leads, never factual evidence.
+    """
+    from difflib import SequenceMatcher
+    from urllib.parse import unquote, urlparse, urlunparse
+    parsed = urlparse(url)
+    path = parsed.path.rstrip("/")
+    if path.count("/") < 2:
+        return ""
+    parent_path, _, segment = path.rpartition("/")
+    parent = urlunparse(parsed._replace(path=parent_path, query="", fragment=""))
+    try:
+        raw = fetch_url(parent, link_query=unquote(segment).replace("_", " "))
+    except Exception:  # noqa: BLE001 - recovery is best effort; the original 404 stands
+        return ""
+    marker = "NAVIGATION LINKS (discovery only, not factual evidence):\n"
+    if marker not in raw:
+        return ""
+    try:
+        links = json.loads(raw.split(marker, 1)[1])
+    except ValueError:
+        return ""
+    target = unquote(url).casefold()
+    ranked = sorted(links, key=lambda pair: -SequenceMatcher(None, unquote(pair[1]).casefold(), target).ratio())
+    return ("\nThe parent page exists. Its real links closest to the requested URL (discovery only; "
+            "open one of these instead of guessing): " + json.dumps(ranked[:limit], ensure_ascii=False))
+
+
 def fetch_url(url: str, link_query: str | None = None) -> str:
     for _ in range(5):
         response = requests.get(
@@ -191,6 +222,8 @@ def fetch_url(url: str, link_query: str | None = None) -> str:
     else:
         raise ValueError("too many redirects")
     try:
+        if getattr(response, "status_code", None) == 404:
+            raise ValueError("404 Not Found: " + url + nearby_links(url))
         response.raise_for_status()
         body = bounded_response_body(response)
     finally:

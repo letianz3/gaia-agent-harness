@@ -18,9 +18,23 @@ def named_source_terms(question):
     return [t for t in dict.fromkeys(pieces + codes) if len(t) >= 4]
 
 
-def lead_score(row, terms):
+_STOP = {'what','which','where','when','that','this','with','from','their','about','under','have','only',
+         'give','answer','number','find','were','does','they','into','mentioned','there','would','your'}
+
+
+def query_echo(url, question, threshold=6):
+    """Search-spam pages whose URL is built from the query itself ("/market/<the question>")."""
+    from urllib.parse import unquote
+    words = {w for w in re.findall(r'[a-z]{4,}', question.casefold()) if w not in _STOP}
+    slug = set(re.findall(r'[a-z]{4,}', unquote(url).casefold()))
+    return len(words & slug) >= threshold
+
+
+def lead_score(row, terms, sites=()):
+    from urllib.parse import urlparse
     text = ' '.join(str(row.get(k, '')) for k in ('title', 'url')).casefold().replace('_', ' ').replace('%20', ' ')
-    return sum(term.casefold() in text for term in terms)
+    same_site = urlparse(str(row.get('url', ''))).hostname in sites
+    return sum(term.casefold() in text for term in terms) + (2 if same_site else 0)
 
 
 def fetch_search_only_sources(registry, trace):
@@ -51,10 +65,14 @@ def fetch_search_only_sources(registry, trace):
             url=row.get('url') if isinstance(row,dict) else None
             if isinstance(url,str) and url.startswith(('https://','http://')):
                 leads.append((order,rank,row,url))
-    identity_gap=any(e.get('type')=='source_identity' and e.get('status')=='unconfirmed' for e in events)
-    terms=named_source_terms(trace.question) if identity_gap else []
+    from urllib.parse import urlparse
+    gaps=[e for e in events if e.get('type')=='source_identity' and e.get('status')=='unconfirmed']
+    terms=named_source_terms(trace.question) if gaps else []
+    # The named source is usually elsewhere on the same platform as the near miss.
+    sites={urlparse(str(e.get('url',''))).hostname for e in gaps}
     if terms:
-        ranked=sorted((x for x in leads if lead_score(x[2],terms)>0),key=lambda x:(-lead_score(x[2],terms),x[0],x[1]))
+        usable=[x for x in leads if not query_echo(x[3],trace.question) and lead_score(x[2],terms,sites)>0]
+        ranked=sorted(usable,key=lambda x:(-lead_score(x[2],terms,sites),x[0],x[1]))
         trace.add('lead_selection',policy='named_source_terms',terms=terms,
                   candidates=[x[3] for x in ranked[:6]])
     else:

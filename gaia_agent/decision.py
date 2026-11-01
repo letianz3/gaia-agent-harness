@@ -40,6 +40,8 @@ def unresolved(agent, trace, reason, incumbent, challenger=None, report=None):
         return UNVERIFIED
     candidates = [('A', incumbent)] + ([('B', challenger)] if challenger is not None else [])
     candidates = [(key, value) for key, value in candidates if not is_abstention(value)]
+    if len(candidates) == 2 and ungrounded_incumbent(trace) and grounded(candidates[1][1], trace.events):
+        candidates = candidates[1:]  # a fabricated incumbent cannot win a tie against a grounded challenger
     if not candidates:
         trace.add('best_effort_selection', selected=None, reason='no non-abstaining candidate')
         return UNVERIFIED
@@ -107,3 +109,34 @@ def _value_key(text):
 
 def execution_backed(candidate, trace):
     return _value_key(candidate) in executed_values(trace)
+
+
+def _canonical(text):
+    import unicodedata
+    return ' '.join(unicodedata.normalize('NFKC', str(text)).split()).casefold()
+
+
+def grounded(value, events):
+    """Whether a textual answer can be traced to inputs available when it was produced.
+
+    Sources: the task input, successful tool results (search snippets included:
+    this is provenance, not truth) and worker results. Purely numeric answers
+    are often computed, so they are not judged here. List answers need every item.
+    """
+    text = str(value or '').strip()
+    if not re.search(r'[^\W\d_]', text):
+        return True
+    items = [i.strip() for i in text.split(',')] if ',' in text else [text]
+    parts = []
+    for event in events:
+        if event.get('type') == 'input_evidence' or event.get('type') == 'subtask_result' or (
+                event.get('type') == 'tool_call' and event.get('succeeded')):
+            parts.append(str(event.get('result', '')))
+    corpus = _canonical('\n'.join(parts))
+    return all(_canonical(item) in corpus for item in items if item)
+
+
+def ungrounded_incumbent(trace):
+    """Recorded at the start of verification, before verification fetches anything."""
+    record = next((e for e in trace.events if e.get('type') == 'answer_grounding'), None)
+    return record is not None and record.get('grounded') is False
